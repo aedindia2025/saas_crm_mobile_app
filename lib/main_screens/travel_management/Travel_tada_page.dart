@@ -1,7 +1,6 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../api_helpers/api_method.dart';
 
 import 'NewTravel_claim_page.dart';
 import 'NewTravel_request_page.dart';
@@ -23,6 +22,7 @@ class _TravelTadaPageState extends State<TravelTadaPage>
   bool loadingClaims = true;
 
   String? token;
+  String tenantSlug = '';
 
   List<Map<String, dynamic>> travelRequests = [];
   List<Map<String, dynamic>> claims = [];
@@ -38,7 +38,7 @@ class _TravelTadaPageState extends State<TravelTadaPage>
 
   Map<String, String> get headers => {
     'Authorization': 'Bearer $token',
-    'X-Tenant-Slug': 'ascent',
+    'X-Tenant-Slug': tenantSlug,
     'Accept': 'application/json',
     'Content-Type': 'application/json',
   };
@@ -46,6 +46,7 @@ class _TravelTadaPageState extends State<TravelTadaPage>
   Future<void> loadAll() async {
     final prefs = await SharedPreferences.getInstance();
     token = prefs.getString('auth_token');
+    tenantSlug = prefs.getString('tenant_slug') ?? '';
 
     if (token == null) return;
 
@@ -58,16 +59,16 @@ class _TravelTadaPageState extends State<TravelTadaPage>
   }
 
   Future<dynamic> getApi(String path) async {
-    final response = await http.get(
-      Uri.parse("$baseUrl$path"),
+    final response = await ApiMethod.getRequest(
+      url: "$baseUrl$path",
       headers: headers,
     );
 
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+    if (response['statusCode'] == 200) {
+      return response['data'];
     }
 
-    throw Exception(response.body);
+    throw Exception(response['data']?.toString() ?? 'API Error');
   }
 
   Future<void> fetchTravelRequests() async {
@@ -668,16 +669,17 @@ class _TravelTadaPageState extends State<TravelTadaPage>
 
   Future<void> submitTravel(int id) async {
     try {
-      final response = await http.post(
-        Uri.parse("$baseUrl/travel/requests/$id/submit"),
+      final response = await ApiMethod.postRequest(
+        url: "$baseUrl/travel/requests/$id/submit",
         headers: headers,
+        body: {},
       );
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
+      if (response['statusCode'] == 200 || response['statusCode'] == 201) {
         showSuccess("Travel request submitted");
         fetchTravelRequests();
       } else {
-        showError(response.body);
+        showError(response['data']?.toString() ?? 'Error submitting travel request');
       }
     } catch (e) {
       showError(e.toString());
@@ -686,16 +688,17 @@ class _TravelTadaPageState extends State<TravelTadaPage>
 
   Future<void> submitClaim(int id) async {
     try {
-      final response = await http.post(
-        Uri.parse("$baseUrl/travel/tada/$id/submit"),
+      final response = await ApiMethod.postRequest(
+        url: "$baseUrl/travel/tada/$id/submit",
         headers: headers,
+        body: {},
       );
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
+      if (response['statusCode'] == 200 || response['statusCode'] == 201) {
         showSuccess("Claim submitted");
         fetchClaims();
       } else {
-        showError(response.body);
+        showError(response['data']?.toString() ?? 'Error submitting claim');
       }
     } catch (e) {
       showError(e.toString());
@@ -1515,6 +1518,7 @@ class _TravelTadaPageState extends State<TravelTadaPage>
         builder: (_) => NewTravelRequestPage(
           baseUrl: baseUrl,
           token: token!,
+          tenantSlug: tenantSlug,
           customers: customers,
           editData: item,
         ),
@@ -1531,6 +1535,7 @@ class _TravelTadaPageState extends State<TravelTadaPage>
         builder: (_) => NewTravelRequestPage(
           baseUrl: baseUrl,
           token: token!,
+          tenantSlug: tenantSlug,
           customers: customers,
         ),
       ),
@@ -1546,6 +1551,7 @@ class _TravelTadaPageState extends State<TravelTadaPage>
         builder: (_) => NewTravelClaimPage(
           baseUrl: baseUrl,
           token: token!,
+          tenantSlug: tenantSlug,
           requests: travelRequests,
         ),
       ),

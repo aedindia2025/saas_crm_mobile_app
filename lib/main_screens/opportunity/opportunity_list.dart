@@ -1,8 +1,6 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
+import '../../api_helpers/api_method.dart';
 
 import '../Leads/view_lead.dart';
 import 'edit_opportunity.dart';
@@ -29,7 +27,8 @@ class AppColors {
 }
 
 class OpportunityList extends StatefulWidget {
-  const OpportunityList({super.key});
+  final String tenantSlug;
+  const OpportunityList({super.key, required this.tenantSlug});
 
   @override
   State<OpportunityList> createState() => _OpportunityListState();
@@ -37,7 +36,6 @@ class OpportunityList extends StatefulWidget {
 
 class _OpportunityListState extends State<OpportunityList> {
   static const String baseUrl = 'http://103.110.236.187:3076/api/v1';
-  static const String tenantSlug = 'ascent';
 
   bool showFilters = false;
 
@@ -90,18 +88,18 @@ class _OpportunityListState extends State<OpportunityList> {
     if (token == null) return;
 
     try {
-      final customerRes = await http.get(
-        Uri.parse('$baseUrl/leads/team-customers'),
+      final customerRes = await ApiMethod.getRequest(
+        url: '$baseUrl/leads/team-customers',
         headers: headers,
       );
 
-      final userRes = await http.get(
-        Uri.parse('$baseUrl/leads/team-users'),
+      final userRes = await ApiMethod.getRequest(
+        url: '$baseUrl/leads/team-users',
         headers: headers,
       );
 
-      if (customerRes.statusCode == 200) {
-        final List data = jsonDecode(customerRes.body);
+      if (customerRes['statusCode'] == 200) {
+        final List data = customerRes['data'];
         customers = data
             .where((x) => x['id'] != null && x['customer_name'] != null)
             .map((x) => {
@@ -112,8 +110,8 @@ class _OpportunityListState extends State<OpportunityList> {
             .toList();
       }
 
-      if (userRes.statusCode == 200) {
-        final List data = jsonDecode(userRes.body);
+      if (userRes['statusCode'] == 200) {
+        final List data = userRes['data'];
         assignedUsers = data
             .where((x) => x['id'] != null && x['label'] != null)
             .map((x) => {
@@ -132,7 +130,7 @@ class _OpportunityListState extends State<OpportunityList> {
 
   Map<String, String> get headers => {
     'Authorization': 'Bearer $token',
-    'X-Tenant-Slug': tenantSlug,
+    'X-Tenant-Slug': widget.tenantSlug,
     'Accept': 'application/json',
     'Content-Type': 'application/json',
   };
@@ -401,10 +399,13 @@ class _OpportunityListState extends State<OpportunityList> {
         queryParameters: query.isEmpty ? null : query,
       );
 
-      final response = await http.get(uri, headers: headers);
+      final response = await ApiMethod.getRequest(
+        url: uri.toString(),
+        headers: headers,
+      );
 
-      if (response.statusCode == 200) {
-        final List res = jsonDecode(response.body);
+      if (response['statusCode'] == 200) {
+        final List res = response['data'];
 
         final filtered = res
             .where((item) {
@@ -435,7 +436,7 @@ class _OpportunityListState extends State<OpportunityList> {
         });
       } else {
         setState(() => isLoading = false);
-        showError(response.body);
+        showError(response['data']?.toString() ?? 'Error fetching opportunities');
       }
     } catch (e) {
       setState(() => isLoading = false);
@@ -467,15 +468,15 @@ class _OpportunityListState extends State<OpportunityList> {
 
     if (ok != true) return;
 
-    final res = await http.delete(
-      Uri.parse('$baseUrl/leads/$id'),
+    final res = await ApiMethod.deleteRequest(
+      url: '$baseUrl/leads/$id',
       headers: headers,
     );
 
-    if (res.statusCode == 200 || res.statusCode == 204) {
+    if (res['statusCode'] == 200 || res['statusCode'] == 204) {
       await refreshList();
     } else {
-      showError(res.body);
+      showError(res['data']?.toString() ?? 'Failed to delete opportunity');
     }
   }
 
@@ -761,6 +762,7 @@ class _OpportunityListState extends State<OpportunityList> {
             MaterialPageRoute(
               builder: (_) => EditOpportunity(
                 opportunityData: Map<String, dynamic>.from(item),
+                tenantSlug: widget.tenantSlug,
               ),
             ),
           );

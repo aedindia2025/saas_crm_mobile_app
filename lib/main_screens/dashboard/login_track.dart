@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginTrackerTab extends StatefulWidget {
   final String token;
@@ -21,6 +22,7 @@ class _LoginTrackerTabState extends State<LoginTrackerTab> {
 
   bool loading = true;
   Map<String, dynamic>? data;
+  String? tenantSlug;
 
   String viewMode = "dashboard";
   String reportTab = "logged_in";
@@ -86,13 +88,18 @@ class _LoginTrackerTabState extends State<LoginTrackerTab> {
   Future<void> loadData() async {
     setState(() => loading = true);
 
+    if (tenantSlug == null) {
+      final prefs = await SharedPreferences.getInstance();
+      tenantSlug = prefs.getString('tenant_slug') ?? '';
+    }
+
     final uri = Uri.parse("$baseUrl/dashboard/tab/login_tracker")
         .replace(queryParameters: queryParams);
 
     final res = await http.get(
       uri,
       headers: {
-        'X-Tenant-Slug': 'ascent',
+        'X-Tenant-Slug': tenantSlug!,
         "Authorization": "Bearer ${widget.token}",
         "Accept": "application/json",
       },
@@ -104,10 +111,15 @@ class _LoginTrackerTabState extends State<LoginTrackerTab> {
   }
 
   Future<void> sendReminder(List<int> userIds) async {
+    if (tenantSlug == null) {
+      final prefs = await SharedPreferences.getInstance();
+      tenantSlug = prefs.getString('tenant_slug') ?? '';
+    }
+
     final res = await http.post(
       Uri.parse("$baseUrl/dashboard/send-login-reminder"),
       headers: {
-        'X-Tenant-Slug': 'ascent',
+        'X-Tenant-Slug': tenantSlug!,
         "Authorization": "Bearer ${widget.token}",
         "Accept": "application/json",
         "Content-Type": "application/json",
@@ -1384,94 +1396,143 @@ class _LoginTrackerTabState extends State<LoginTrackerTab> {
   }
 
   Widget _sessionHistoryTable() {
-    if (isMobile) {
-      if (sessionTable.isEmpty) {
-        return _emptyCard("No session history");
-      }
-
-      return Column(
-        children: sessionTable.take(100).map((r) {
-          final active = r["is_active"] == true;
-
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: _mobileDataCard(
-              title: "${r["user_name"] ?? "—"}",
-              subtitle: "${r["role"] ?? "—"} · ${r["region"] ?? "—"}",
-              badge: _badge(
-                active ? "Active" : "Ended",
-                active ? const Color(0xff059669) : const Color(0xff64748b),
-              ),
-              rows: [
-                _infoPair("Group", "${r["group"] ?? "—"}"),
-                _infoPair("Login", fmtDateTime(r["login_time"])),
-                _infoPair("Logout", fmtDateTime(r["logout_time"])),
-                _infoPair("Duration", fmtDuration(r["duration_minutes"])),
-                _infoPair("Device", "${r["device"] ?? "—"}"),
-                _infoPair("Browser", "${r["browser"] ?? "—"}"),
-                _infoPair("IP", "${r["ip_address"] ?? "—"}"),
-              ],
-            ),
-          );
-        }).toList(),
-      );
+    if (sessionTable.isEmpty) {
+      return _emptyCard("No session history");
     }
 
-    return _card(
-      SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: DataTable(
-          headingRowColor: WidgetStateProperty.all(
-            const Color(0xfff8fafc),
-          ),
-          columns: const [
-            DataColumn(label: Text("User")),
-            DataColumn(label: Text("Role")),
-            DataColumn(label: Text("Region")),
-            DataColumn(label: Text("Group")),
-            DataColumn(label: Text("Login Time")),
-            DataColumn(label: Text("Logout Time")),
-            DataColumn(label: Text("Duration")),
-            DataColumn(label: Text("Device")),
-            DataColumn(label: Text("IP")),
-            DataColumn(label: Text("Browser")),
-            DataColumn(label: Text("Status")),
-          ],
-          rows: sessionTable.take(100).map((r) {
-            final active = r["is_active"] == true;
+    return Column(
+      children: sessionTable.take(100).map((r) {
+        final active = r["is_active"] == true;
+        final statusColor =
+        active ? const Color(0xff059669) : const Color(0xff64748b);
 
-            return DataRow(
-              cells: [
-                DataCell(
-                  Text(
-                    "${r["user_name"] ?? "—"}",
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                DataCell(Text("${r["role"] ?? "—"}")),
-                DataCell(Text("${r["region"] ?? "—"}")),
-                DataCell(Text("${r["group"] ?? "—"}")),
-                DataCell(Text(fmtDateTime(r["login_time"]))),
-                DataCell(Text(fmtDateTime(r["logout_time"]))),
-                DataCell(Text(fmtDuration(r["duration_minutes"]))),
-                DataCell(Text("${r["device"] ?? "—"}")),
-                DataCell(Text("${r["ip_address"] ?? "—"}")),
-                DataCell(Text("${r["browser"] ?? "—"}")),
-                DataCell(
-                  _badge(
-                    active ? "Active" : "Ended",
-                    active
-                        ? const Color(0xff059669)
-                        : const Color(0xff64748b),
-                  ),
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xffe6eaf1)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x0d0f172a),
+                  blurRadius: 14,
+                  offset: Offset(0, 4),
                 ),
               ],
-            );
-          }).toList(),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: statusColor.withOpacity(.10),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(
+                        active ? Icons.radio_button_checked : Icons.history,
+                        color: statusColor,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "${r["user_name"] ?? "—"}",
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xff0f172a),
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            "${r["role"] ?? "—"} • ${r["region"] ?? "—"} • ${r["group"] ?? "—"}",
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Color(0xff64748b),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    _badge(active ? "Active" : "Ended", statusColor),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                const Divider(height: 1, color: Color(0xffeef2f7)),
+                const SizedBox(height: 14),
+
+                Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(child: _sessionPlainInfo("Login", fmtDateTime(r["login_time"]))),
+                        Expanded(child: _sessionPlainInfo("Logout", fmtDateTime(r["logout_time"]))),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(child: _sessionPlainInfo("Duration", fmtDuration(r["duration_minutes"]))),
+                        Expanded(child: _sessionPlainInfo("Device", "${r["device"] ?? "—"}")),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(child: _sessionPlainInfo("Browser", "${r["browser"] ?? "—"}")),
+                        Expanded(child: _sessionPlainInfo("IP", "${r["ip_address"] ?? "—"}")),
+                      ],
+                    ),
+                  ],
+                )
+              ],
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _sessionPlainInfo(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label.toUpperCase(),
+          style: const TextStyle(
+            fontSize: 9,
+            color: Color(0xff94a3b8),
+            fontWeight: FontWeight.w900,
+          ),
         ),
-      ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 12,
+            color: Color(0xff0f172a),
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
     );
   }
 

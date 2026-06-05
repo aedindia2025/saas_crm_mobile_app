@@ -3,17 +3,18 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class DashboardApi {
   static const String baseUrl = "http://103.110.236.187:3076/api/v1";
 
-  static Future<Map<String, dynamic>> fetchOverview(String token) async {
+  static Future<Map<String, dynamic>> fetchOverview(String token, String tenantSlug) async {
     final url = "$baseUrl/dashboard";
 
     final res = await http.get(
       Uri.parse(url),
       headers: {
-        'X-Tenant-Slug': 'ascent',
+        'X-Tenant-Slug': tenantSlug,
         "Authorization": "Bearer $token",
         "Accept": "application/json",
       },
@@ -42,16 +43,27 @@ class OverviewTab extends StatefulWidget {
 
 class _OverviewTabState extends State<OverviewTab> {
   late Future<Map<String, dynamic>> future;
+  String? tenantSlug;
 
   @override
   void initState() {
     super.initState();
-    future = DashboardApi.fetchOverview(widget.token);
+    future = _initAndFetch();
+  }
+
+  Future<Map<String, dynamic>> _initAndFetch() async {
+    final prefs = await SharedPreferences.getInstance();
+    tenantSlug = prefs.getString('tenant_slug') ?? '';
+    return DashboardApi.fetchOverview(widget.token, tenantSlug!);
   }
 
   void refresh() {
     setState(() {
-      future = DashboardApi.fetchOverview(widget.token);
+      if (tenantSlug != null) {
+        future = DashboardApi.fetchOverview(widget.token, tenantSlug!);
+      } else {
+        future = _initAndFetch();
+      }
     });
   }
 
@@ -574,92 +586,358 @@ class _TenderOutcomeCard extends StatelessWidget {
   }
 }
 
-class _CalendarCard extends StatelessWidget {
+// REPLACE FROM: class _CalendarCard ... END OF _ActivityFeedCard
+
+class _CalendarCard extends StatefulWidget {
   final Map overview;
   const _CalendarCard({required this.overview});
 
   @override
-  Widget build(BuildContext context) {
-    final bids = overview["upcoming_bid_dates"] as List? ?? [];
-    final urgent = bids.where((e) => e["priority"] == "urgent").length;
-    final upcoming = bids.where((e) => e["priority"] != "urgent").length;
-    final now = DateTime.now();
-    final daysInMonth = DateTime(now.year, now.month + 1, 0).day;
-    final firstDay = DateTime(now.year, now.month, 1).weekday % 7;
+  State<_CalendarCard> createState() => _CalendarCardState();
+}
 
-    bool hasBid(int day) {
-      return bids.any((b) {
-        final d = DateTime.tryParse("${b["submission_date"]}");
-        return d != null && d.year == now.year && d.month == now.month && d.day == day;
-      });
+class _CalendarCardState extends State<_CalendarCard> {
+  late DateTime calMonth;
+
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    calMonth = DateTime(now.year, now.month, 1);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bids = widget.overview["upcoming_bid_dates"] as List? ?? [];
+    final bidDates = bids.map((b) {
+      final d = DateTime.tryParse("${b["submission_date"]}");
+      return {
+        ...Map<String, dynamic>.from(b as Map),
+        "dateObj": d,
+        "urgent": b["priority"] == "urgent",
+      };
+    }).where((b) => b["dateObj"] != null).toList();
+
+    final urgent = bidDates.where((b) => b["urgent"] == true).length;
+    final normal = bidDates.where((b) => b["urgent"] != true).length;
+
+    final year = calMonth.year;
+    final month = calMonth.month;
+    final today = DateTime.now();
+    final firstDay = DateTime(year, month, 1).weekday % 7;
+    final daysInMonth = DateTime(year, month + 1, 0).day;
+
+    Map? bidForDay(int day) {
+      for (final b in bidDates) {
+        final d = b["dateObj"] as DateTime;
+        if (d.year == year && d.month == month && d.day == day) return b;
+      }
+      return null;
+    }
+
+    void showBid(Map bid) {
+      showModalBottomSheet(
+        context: context,
+        backgroundColor: Colors.transparent,
+        builder: (_) => Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(22),
+          ),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text("${bid["title"] ?? bid["tender_num"] ?? ""}", style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 4),
+            Text("${bid["customer"] ?? ""}", style: const TextStyle(fontSize: 11, color: Color(0xff64748b))),
+            const SizedBox(height: 14),
+            _BidInfo("Tender No", bid["tender_num"]),
+            _BidInfo("Submission", bid["submission_date"]),
+            _BidInfo("Days Left", bid["days_left"]),
+            _BidInfo("Est. Value", fmtRs(bid["est_value"])),
+            _BidInfo("Portal", bid["portal"]),
+            _BidInfo("Status", bid["status"]),
+          ]),
+        ),
+      );
     }
 
     return _Panel(
-      height: 380,
+      height: 410,
       title: "Upcoming Bid Dates",
       subtitle: "Tender submission calendar",
       color: const Color(0xff2563eb),
-      icon: Icons.event_note,
-      child: Column(
+      icon: Icons.description,
+      child: Row(
         children: [
-          Row(children: [
-            Expanded(child: _SideCount("Urgent", "$urgent", "Due within 3 days", const Color(0xffdc2626))),
-            const SizedBox(width: 10),
-            Expanded(child: _SideCount("Upcoming", "$upcoming", "Next 30 days", const Color(0xffd97706))),
-          ]),
-          const SizedBox(height: 12),
           Expanded(
             child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: const Color(0xfff8fafc), borderRadius: BorderRadius.circular(14)),
-              child: Column(
-                children: [
-                  Text(DateFormat('MMMM yyyy').format(now), style: const TextStyle(fontWeight: FontWeight.w900)),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: ["SU", "MO", "TU", "WE", "TH", "FR", "SA"]
-                        .map((e) => Text(e, style: const TextStyle(fontSize: 10, color: Color(0xff94a3b8), fontWeight: FontWeight.w900)))
-                        .toList(),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xfff8fafc),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xfff1f5f9)),
+              ),
+              child: Column(children: [
+                Row(children: [
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => setState(() => calMonth = DateTime(year, month - 1, 1)),
+                    icon: const Icon(Icons.chevron_left, size: 18, color: Color(0xff94a3b8)),
                   ),
-                  const SizedBox(height: 8),
                   Expanded(
-                    child: GridView.count(
-                      crossAxisCount: 7,
-                      physics: const NeverScrollableScrollPhysics(),
-                      children: List.generate(firstDay + daysInMonth, (i) {
-                        if (i < firstDay) return const SizedBox();
-                        final day = i - firstDay + 1;
-                        final today = day == now.day;
-                        final bid = hasBid(day);
-                        return Center(
-                          child: Container(
-                            width: 34,
-                            height: 26,
+                    child: Text(
+                      DateFormat('MMMM yyyy').format(calMonth),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xff334155)),
+                    ),
+                  ),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => setState(() => calMonth = DateTime(year, month + 1, 1)),
+                    icon: const Icon(Icons.chevron_right, size: 18, color: Color(0xff94a3b8)),
+                  ),
+                ]),
+                Row(
+                  children: ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
+                      .map((d) => Expanded(child: Center(child: Text(d, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Color(0xff94a3b8))))))
+                      .toList(),
+                ),
+                const SizedBox(height: 6),
+                Expanded(
+                  child: GridView.count(
+                    crossAxisCount: 7,
+                    physics: const NeverScrollableScrollPhysics(),
+                    mainAxisSpacing: 2,
+                    crossAxisSpacing: 2,
+                    children: List.generate(firstDay + daysInMonth, (i) {
+                      if (i < firstDay) return const SizedBox();
+                      final day = i - firstDay + 1;
+                      final isToday = today.year == year && today.month == month && today.day == day;
+                      final bid = bidForDay(day);
+                      final urgentBid = bid?["urgent"] == true;
+
+                      return InkWell(
+                        onTap: bid == null ? null : () => showBid(bid),
+                        borderRadius: BorderRadius.circular(7),
+                        child: Stack(alignment: Alignment.center, children: [
+                          Container(
                             alignment: Alignment.center,
                             decoration: BoxDecoration(
-                              color: today ? const Color(0xff2563eb) : bid ? const Color(0xfffff7ed) : null,
+                              color: isToday
+                                  ? const Color(0xff2563eb)
+                                  : bid == null
+                                  ? null
+                                  : urgentBid
+                                  ? const Color(0xfffff1f2)
+                                  : const Color(0xfffffbeb),
                               borderRadius: BorderRadius.circular(7),
-                              border: bid && !today ? Border.all(color: const Color(0xffffedd5)) : null,
+                              border: bid == null || isToday
+                                  ? null
+                                  : Border.all(color: urgentBid ? const Color(0xfffecdd3) : const Color(0xfffde68a)),
                             ),
                             child: Text(
                               "$day",
                               style: TextStyle(
-                                color: today ? Colors.white : const Color(0xff334155),
-                                fontSize: 12,
+                                fontSize: 11,
                                 fontWeight: FontWeight.w800,
+                                color: isToday
+                                    ? Colors.white
+                                    : urgentBid
+                                    ? const Color(0xffb91c1c)
+                                    : bid != null
+                                    ? const Color(0xffb45309)
+                                    : const Color(0xff334155),
                               ),
                             ),
                           ),
-                        );
-                      }),
-                    ),
-                  )
-                ],
-              ),
+                          if (bid != null)
+                            Positioned(
+                              bottom: 3,
+                              child: Container(
+                                width: 3,
+                                height: 3,
+                                decoration: BoxDecoration(
+                                  color: isToday ? Colors.white : urgentBid ? const Color(0xffef4444) : const Color(0xfff59e0b),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            ),
+                        ]),
+                      );
+                    }),
+                  ),
+                ),
+              ]),
             ),
           ),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 118,
+            child: Column(children: [
+              Expanded(child: _SideCount("Urgent", fmtN(urgent), "Due within 3 days", const Color(0xffdc2626))),
+              const SizedBox(height: 10),
+              Expanded(child: _SideCount("Upcoming", fmtN(normal), "Next 30 days", const Color(0xffd97706))),
+            ]),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _BidInfo extends StatelessWidget {
+  final String k;
+  final dynamic v;
+  const _BidInfo(this.k, this.v);
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Row(children: [
+      Expanded(child: Text(k, style: const TextStyle(fontSize: 12, color: Color(0xff64748b)))),
+      Flexible(child: Text("${v ?? "—"}", textAlign: TextAlign.right, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800))),
+    ]),
+  );
+}
+
+class _LeadStatusCard extends StatelessWidget {
+  final Map<String, dynamic> data;
+  const _LeadStatusCard({required this.data});
+
+  Color _statusColor(String s, int i) {
+    const fallback = [
+      Color(0xff1e40af), Color(0xff7c3aed), Color(0xffea580c),
+      Color(0xff059669), Color(0xffdc2626), Color(0xff0d9488),
+    ];
+    switch (s) {
+      case "Assigned": return const Color(0xff6366f1);
+      case "Qualified": return const Color(0xff4338ca);
+      case "Opportunity Created": return const Color(0xff0284c7);
+      case "Converted":
+      case "Won": return const Color(0xff059669);
+      case "Lost": return const Color(0xffdc2626);
+      case "Pending": return const Color(0xffd97706);
+      default: return fallback[i % fallback.length];
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = data["lead_by_status"] as List? ?? [];
+
+    return _Panel(
+      title: "Leads by Status",
+      subtitle: "Pipeline composition",
+      color: const Color(0xff6366f1),
+      icon: Icons.track_changes,
+      child: rows.isEmpty
+          ? const Center(child: Text("No lead data"))
+          : Column(children: [
+        Expanded(
+          child: PieChart(PieChartData(
+            centerSpaceRadius: 52,
+            sectionsSpace: 2,
+            sections: List.generate(rows.length, (i) {
+              final status = "${rows[i]["status"]}";
+              return PieChartSectionData(
+                value: n(rows[i]["count"]).toDouble(),
+                color: _statusColor(status, i),
+                showTitle: false,
+                radius: 46,
+              );
+            }),
+          )),
+        ),
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 10,
+          runSpacing: 7,
+          children: List.generate(rows.length, (i) {
+            final status = "${rows[i]["status"]}";
+            return Row(mainAxisSize: MainAxisSize.min, children: [
+              Container(width: 8, height: 8, decoration: BoxDecoration(color: _statusColor(status, i), borderRadius: BorderRadius.circular(2))),
+              const SizedBox(width: 5),
+              Text(status, style: const TextStyle(fontSize: 10, color: Color(0xff64748b), fontWeight: FontWeight.w700)),
+            ]);
+          }),
+        ),
+      ]),
+    );
+  }
+}
+
+class _ActivityFeedCard extends StatelessWidget {
+  final Map<String, dynamic> data;
+  const _ActivityFeedCard({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final items = data["recent_activity"] as List? ?? [];
+
+    return _Panel(
+      height: 380,
+      title: "Activity Feed",
+      subtitle: "Recent system activity",
+      color: const Color(0xff0d9488),
+      icon: Icons.monitor_heart,
+      child: items.isEmpty
+          ? const Center(child: Text("No recent activity"))
+          : ListView.separated(
+        itemCount: items.length,
+        separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xfff1f5f9)),
+        itemBuilder: (_, i) {
+          final a = items[i];
+          final module = "${a["module"] ?? "SYS"}";
+          final mod = module.toLowerCase();
+          final bg = mod.contains("tender")
+              ? const Color(0xfff5f3ff)
+              : mod.contains("lead")
+              ? const Color(0xfff0f9ff)
+              : mod.contains("emd")
+              ? const Color(0xfffff1f2)
+              : mod.contains("cust")
+              ? const Color(0xffecfdf5)
+              : const Color(0xfff8fafc);
+          final fg = mod.contains("tender")
+              ? const Color(0xff6d28d9)
+              : mod.contains("lead")
+              ? const Color(0xff0369a1)
+              : mod.contains("emd")
+              ? const Color(0xffb91c1c)
+              : mod.contains("cust")
+              ? const Color(0xff047857)
+              : const Color(0xff64748b);
+          final label = module.length > 4 ? module.substring(0, 4).toUpperCase() : module.toUpperCase();
+          final dt = DateTime.tryParse("${a["created_at"]}");
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(
+                width: 36,
+                height: 30,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(9)),
+                child: Text(label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: fg, letterSpacing: .5)),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text("${a["description"] ?? ""}", style: const TextStyle(fontSize: 12, color: Color(0xff334155), fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 4),
+                  Text(module, style: const TextStyle(fontSize: 10, color: Color(0xff94a3b8), fontWeight: FontWeight.w600)),
+                ]),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                dt == null ? "" : DateFormat('dd MMM\nh:mm a').format(dt),
+                textAlign: TextAlign.right,
+                style: const TextStyle(fontSize: 9, color: Color(0xff94a3b8), fontFamily: "monospace"),
+              ),
+            ]),
+          );
+        },
       ),
     );
   }
@@ -686,98 +964,4 @@ class _SideCount extends StatelessWidget {
       Text(sub, overflow: TextOverflow.ellipsis, style: TextStyle(color: color, fontSize: 10)),
     ]),
   );
-}
-
-class _LeadStatusCard extends StatelessWidget {
-  final Map<String, dynamic> data;
-  const _LeadStatusCard({required this.data});
-
-  @override
-  Widget build(BuildContext context) {
-    final rows = data["lead_by_status"] as List? ?? [];
-    final colors = [
-      const Color(0xff0284c7),
-      const Color(0xff059669),
-      const Color(0xff6366f1),
-      const Color(0xfff97316),
-      const Color(0xffef4444),
-    ];
-
-    return _Panel(
-      title: "Leads by Status",
-      subtitle: "Pipeline composition",
-      color: const Color(0xff6366f1),
-      icon: Icons.track_changes,
-      child: rows.isEmpty
-          ? const Center(child: Text("No lead data"))
-          : PieChart(PieChartData(
-        centerSpaceRadius: 48,
-        sectionsSpace: 3,
-        sections: List.generate(rows.length, (i) {
-          return PieChartSectionData(
-            value: n(rows[i]["count"]).toDouble(),
-            color: colors[i % colors.length],
-            showTitle: false,
-          );
-        }),
-      )),
-    );
-  }
-}
-
-class _ActivityFeedCard extends StatelessWidget {
-  final Map<String, dynamic> data;
-  const _ActivityFeedCard({required this.data});
-
-  @override
-  Widget build(BuildContext context) {
-    final items = data["recent_activity"] as List? ?? [];
-
-    return _Panel(
-      height: 380,
-      title: "Activity Feed",
-      subtitle: "Latest system events",
-      color: const Color(0xff0d9488),
-      icon: Icons.monitor_heart,
-      child: items.isEmpty
-          ? const Center(child: Text("No recent activity"))
-          : ListView.separated(
-        itemCount: items.length,
-        separatorBuilder: (_, __) => const Divider(height: 18, color: Color(0xffedf2f7)),
-        itemBuilder: (_, i) {
-          final item = items[i];
-          final module = "${item["module"] ?? "SYS"}";
-          final createdAt = DateTime.tryParse("${item["created_at"]}");
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 38,
-                height: 28,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(color: const Color(0xfff1f5f9), borderRadius: BorderRadius.circular(8)),
-                child: Text(
-                  module.length > 4 ? module.substring(0, 4).toUpperCase() : module.toUpperCase(),
-                  style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Color(0xff64748b)),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text("${item["description"] ?? ""}", style: const TextStyle(fontSize: 12, color: Color(0xff334155), fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 3),
-                  Text(module, style: const TextStyle(fontSize: 10, color: Color(0xff94a3b8))),
-                ]),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                createdAt == null ? "" : DateFormat('dd-MM, h:mm a').format(createdAt),
-                style: const TextStyle(fontSize: 9, color: Color(0xff94a3b8), fontFamily: "monospace"),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
 }

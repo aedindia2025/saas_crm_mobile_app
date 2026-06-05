@@ -1,7 +1,7 @@
 import 'dart:convert';
 
+import 'package:ascent_crm/api_helpers/api_method.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AppColors {
@@ -96,7 +96,6 @@ class OemRowModel {
 
 class _CreateLeadState extends State<CreateLead> with SingleTickerProviderStateMixin {
   static const String baseUrl = "http://103.110.236.187:3076/api/v1";
-  static const String tenantSlug = "ascent";
   static const String draftKey = "create_lead_draft_v1";
 
   final _formKey = GlobalKey<FormState>();
@@ -106,6 +105,7 @@ class _CreateLeadState extends State<CreateLead> with SingleTickerProviderStateM
   bool isMasterLoading = true;
   int currentTab = 0;
   String? token;
+  String? tenantSlug;
 
   List<Map<String, dynamic>> customers = [];
   List<Map<String, dynamic>> sources = [];
@@ -162,7 +162,7 @@ class _CreateLeadState extends State<CreateLead> with SingleTickerProviderStateM
 
   Map<String, String> get headers => {
     "Authorization": "Bearer $token",
-    "X-Tenant-Slug": tenantSlug,
+    "X-Tenant-Slug": tenantSlug ?? "",
     "Accept": "application/json",
     "Content-Type": "application/json",
   };
@@ -170,6 +170,7 @@ class _CreateLeadState extends State<CreateLead> with SingleTickerProviderStateM
   Future<void> loadInitialData() async {
     final prefs = await SharedPreferences.getInstance();
     token = prefs.getString("auth_token");
+    tenantSlug = prefs.getString("tenant_slug") ?? "";
     if (token == null) {
       setState(() => isMasterLoading = false);
       showError("Token not found");
@@ -192,8 +193,8 @@ class _CreateLeadState extends State<CreateLead> with SingleTickerProviderStateM
   }
 
   Future<List> getApiList(String url) async {
-    final response = await http.get(Uri.parse(url), headers: headers);
-    if (response.statusCode == 200) return jsonDecode(response.body);
+    final response = await ApiMethod.getRequest(url: url, headers: headers);
+    if (response['statusCode'] == 200) return response['data'];
     return [];
   }
 
@@ -257,9 +258,12 @@ class _CreateLeadState extends State<CreateLead> with SingleTickerProviderStateM
 
   Future<void> fetchCustomerActiveContact(int customerId) async {
     try {
-      final response = await http.get(Uri.parse("$baseUrl/leads/customer/$customerId/active-contact"), headers: headers);
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+      final response = await ApiMethod.getRequest(
+        url: "$baseUrl/leads/customer/$customerId/active-contact",
+        headers: headers,
+      );
+      if (response['statusCode'] == 200) {
+        final data = response['data'];
         setState(() {
           customerNameController.text = data["customer_name"] ?? "";
           customerAddressController.text = data["customer_address"] ?? "";
@@ -357,15 +361,15 @@ class _CreateLeadState extends State<CreateLead> with SingleTickerProviderStateM
                     setDialogState(() => isSaving = true);
 
                     try {
-                      final response = await http.post(
-                        Uri.parse(url),
+                      final response = await ApiMethod.postRequest(
+                        url: url,
                         headers: headers,
-                        body: jsonEncode({"name": name}),
+                        body: {"name": name},
                       );
 
-                      if (response.statusCode == 200 ||
-                          response.statusCode == 201) {
-                        final data = jsonDecode(response.body);
+                      if (response['statusCode'] == 200 ||
+                          response['statusCode'] == 201) {
+                        final data = response['data'];
 
                         await closeDialog();
 
@@ -389,7 +393,7 @@ class _CreateLeadState extends State<CreateLead> with SingleTickerProviderStateM
                         if (dialogContext.mounted) {
                           setDialogState(() => isSaving = false);
                         }
-                        showError(response.body);
+                        showError(response['data']?.toString() ?? "An error occurred");
                       }
                     } catch (e) {
                       if (dialogContext.mounted) {
@@ -916,10 +920,11 @@ class _CreateLeadState extends State<CreateLead> with SingleTickerProviderStateM
       };
       final url = widget.isEdit ? "$baseUrl/leads/${widget.leadData!["id"]}" : "$baseUrl/leads";
       final response = widget.isEdit
-          ? await http.put(Uri.parse(url), headers: headers, body: jsonEncode(body))
-          : await http.post(Uri.parse(url), headers: headers, body: jsonEncode(body));
+          ? await ApiMethod.putRequest(url: url, headers: headers, body: body)
+          : await ApiMethod.postRequest(url: url, headers: headers, body: body);
+
       setState(() => isLoading = false);
-      if (response.statusCode == 200 || response.statusCode == 201) {
+      if (response['statusCode'] == 200 || response['statusCode'] == 201) {
         await clearDraft();
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -928,7 +933,7 @@ class _CreateLeadState extends State<CreateLead> with SingleTickerProviderStateM
         ));
         Navigator.pop(context, true);
       } else {
-        showError(response.body);
+        showError(response['data']?.toString() ?? "An error occurred");
       }
     } catch (e) {
       setState(() => isLoading = false);

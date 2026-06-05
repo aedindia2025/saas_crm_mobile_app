@@ -1,7 +1,5 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import '../../api_helpers/api_method.dart';
 import '../../utile/app_colors.dart';
 
 
@@ -729,13 +727,13 @@ class _ApprovalDetailPageState extends State<ApprovalDetailPage> {
 
     try {
       final id = approval["id"];
-      final response = await http.get(
-        Uri.parse("${widget.apiBase}/approvals/$id/summary"),
+      final response = await ApiMethod.getRequest(
+        url: "${widget.apiBase}/approvals/$id/summary",
         headers: widget.headers,
       );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+      if (response["statusCode"] == 200) {
+        final data = response["data"];
         setState(() {
           approval = Map<String, dynamic>.from(data);
           summary = data["summary"] is Map
@@ -763,9 +761,9 @@ class _ApprovalDetailPageState extends State<ApprovalDetailPage> {
     setState(() => deciding = true);
 
     try {
-      final uri = isDynamic
-          ? Uri.parse("${widget.apiBase}/approval-workflows/requests/${approval["id"]}/decision")
-          : Uri.parse("${widget.apiBase}/approvals/${approval["id"]}/decide");
+      final url = isDynamic
+          ? "${widget.apiBase}/approval-workflows/requests/${approval["id"]}/decision"
+          : "${widget.apiBase}/approvals/${approval["id"]}/decide";
 
       final body = isDynamic
           ? {
@@ -778,14 +776,13 @@ class _ApprovalDetailPageState extends State<ApprovalDetailPage> {
         "rejection_reason": decision == "rejected" ? notes : null,
       };
 
-      final response = await http.post(
-        uri,
+      final response = await ApiMethod.postRequest(
+        url: url,
         headers: widget.headers,
-        body: jsonEncode(body),
-      )
-          .timeout(const Duration(seconds: 25));
+        body: body,
+      );
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
+      if (response["statusCode"] == 200 || response["statusCode"] == 201) {
         showSuccess(
           decision == "approved"
               ? "Approved successfully"
@@ -796,10 +793,10 @@ class _ApprovalDetailPageState extends State<ApprovalDetailPage> {
         Navigator.pop(context, true);
       } else {
         String msg = "Approval action failed";
-        try {
-          final data = jsonDecode(response.body);
+        final data = response["data"];
+        if (data != null) {
           msg = safeText(data["detail"] ?? data["error"], msg);
-        } catch (_) {}
+        }
         showError(msg);
       }
     } catch (e) {

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class EMDBGTab extends StatefulWidget {
   final String token;
@@ -17,6 +18,7 @@ class _EMDBGTabState extends State<EMDBGTab> {
 
   bool loading = true;
   Map<String, dynamic>? data;
+  String? tenantSlug;
 
   String? dateFrom;
   String? dateTo;
@@ -58,11 +60,16 @@ class _EMDBGTabState extends State<EMDBGTab> {
   Future<void> loadData() async {
     setState(() => loading = true);
 
+    if (tenantSlug == null) {
+      final prefs = await SharedPreferences.getInstance();
+      tenantSlug = prefs.getString('tenant_slug') ?? '';
+    }
+
     final uri = Uri.parse("$baseUrl/dashboard/tab/emdbg")
         .replace(queryParameters: queryParams);
 
     final res = await http.get(uri, headers: {
-      'X-Tenant-Slug': 'ascent',
+      'X-Tenant-Slug': tenantSlug!,
       "Authorization": "Bearer ${widget.token}",
       "Accept": "application/json",
     });
@@ -824,32 +831,71 @@ class _EMDBGTabState extends State<EMDBGTab> {
     list.sort((a, b) => n(b.value["value"]).compareTo(n(a.value["value"])));
     final totalVal = list.fold<num>(0, (s, e) => s + n(e.value["value"]));
 
-    return _card(Column(children: [
-      _cardHead(title, sub),
-      SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: DataTable(
-          headingRowColor: WidgetStateProperty.all(const Color(0xfff8fafc)),
-          columns: const [
-            DataColumn(label: Text("Status")),
-            DataColumn(label: Text("Count")),
-            DataColumn(label: Text("At Risk ≤15d")),
-            DataColumn(label: Text("Exposure ₹")),
-            DataColumn(label: Text("Share %")),
-          ],
-          rows: list.map((e) {
-            final v = e.value;
-            return DataRow(cells: [
-              DataCell(_badge(e.key, const Color(0xff4338ca))),
-              DataCell(Text(fmtN(v["count"]))),
-              DataCell(Text(n(v["critical"]) > 0 ? fmtN(v["critical"]) : "—")),
-              DataCell(Text(fmtRs(v["value"]))),
-              DataCell(Text("${pct(n(v["value"]), totalVal)}%")),
-            ]);
-          }).toList(),
+    return _card(Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _cardHead(title, sub),
+        Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            children: list.map((e) {
+              final v = e.value;
+              final color = _statusColor(e.key);
+              final share = pct(n(v["value"]), totalVal);
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xfff8fafc),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: const Color(0xffe2e8f0)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      CircleAvatar(
+                        radius: 18,
+                        backgroundColor: color.withOpacity(.12),
+                        child: Icon(Icons.verified_user_outlined, color: color, size: 18),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          e.key,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                      _badge("$share%", color),
+                    ]),
+                    const SizedBox(height: 12),
+                    LinearProgressIndicator(
+                      value: totalVal == 0 ? 0 : (n(v["value"]) / totalVal).clamp(0, 1),
+                      minHeight: 8,
+                      backgroundColor: const Color(0xffe2e8f0),
+                      valueColor: AlwaysStoppedAnimation(color),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _miniInfo("Count", fmtN(v["count"])),
+                        _miniInfo("At Risk ≤15d", n(v["critical"]) > 0 ? fmtN(v["critical"]) : "—"),
+                        _miniInfo("Exposure", fmtRs(v["value"])),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
         ),
-      )
-    ]));
+      ],
+    ));
   }
 
   Widget _financeStatusPanel() => _statusBars("finance_status", "Finance Status", "Payment status distribution by exposure value");
@@ -881,43 +927,124 @@ class _EMDBGTabState extends State<EMDBGTab> {
     ]));
   }
 
+// REPLACE _allInstrumentsTable()
   Widget _allInstrumentsTable() {
-    return _card(SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: DataTable(
-        headingRowColor: WidgetStateProperty.all(const Color(0xfff8fafc)),
-        columns: const [
-          DataColumn(label: Text("Ref No")),
-          DataColumn(label: Text("Customer")),
-          DataColumn(label: Text("Tender No")),
-          DataColumn(label: Text("Type")),
-          DataColumn(label: Text("Amount ₹")),
-          DataColumn(label: Text("Bank")),
-          DataColumn(label: Text("Issued")),
-          DataColumn(label: Text("Expiry")),
-          DataColumn(label: Text("Days Left")),
-          DataColumn(label: Text("Status")),
-          DataColumn(label: Text("Finance")),
-          DataColumn(label: Text("Return")),
-        ],
-        rows: rows.map((r) {
-          return DataRow(cells: [
-            DataCell(Text("${r["ref"] ?? "—"}")),
-            DataCell(SizedBox(width: 180, child: Text("${r["client"] ?? "—"}", overflow: TextOverflow.ellipsis))),
-            DataCell(Text("${r["tender_num"] ?? "—"}")),
-            DataCell(_badge("${r["type"] ?? ""}", const Color(0xff0284c7))),
-            DataCell(Text(fmtRs(r["amount"]))),
-            DataCell(Text("${r["bank"] ?? "—"}")),
-            DataCell(Text("${r["issued_date"] ?? "—"}")),
-            DataCell(Text("${r["expiry_date"] ?? "—"}")),
-            DataCell(_daysBadge(r["days_left"])),
-            DataCell(_badge("${r["status"] ?? ""}", _statusColor("${r["status"] ?? ""}"))),
-            DataCell(_badge("${r["finance_status"] ?? ""}", _statusColor("${r["finance_status"] ?? ""}"))),
-            DataCell(_badge("${r["return_status"] ?? "—"}", const Color(0xff64748b))),
-          ]);
+    return _card(Padding(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        children: rows.map((r) {
+          final statusColor = _statusColor("${r["status"] ?? ""}");
+          final financeColor = _statusColor("${r["finance_status"] ?? ""}");
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xfff8fafc),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xffe2e8f0)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  CircleAvatar(
+                    radius: 19,
+                    backgroundColor: const Color(0xffeef2ff),
+                    child: Text(
+                      "${r["type"] ?? "I"}".isEmpty ? "I" : "${r["type"] ?? "I"}".substring(0, 1),
+                      style: const TextStyle(
+                        color: Color(0xff4338ca),
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(
+                        "${r["ref"] ?? "—"}",
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        "${r["client"] ?? "—"}",
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12, color: Color(0xff64748b)),
+                      ),
+                    ]),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    fmtRs(r["amount"]),
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
+                  ),
+                ]),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 7,
+                  runSpacing: 7,
+                  children: [
+                    _badge("${r["type"] ?? ""}", const Color(0xff0284c7)),
+                    _badge("${r["status"] ?? ""}", statusColor),
+                    _badge("${r["finance_status"] ?? ""}", financeColor),
+                    _badge("${r["return_status"] ?? "—"}", const Color(0xff64748b)),
+                    _daysBadge(r["days_left"]),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _miniInfo("Tender No", "${r["tender_num"] ?? "—"}"),
+                    _miniInfo("Bank", "${r["bank"] ?? "—"}"),
+                    _miniInfo("Issued", "${r["issued_date"] ?? "—"}"),
+                    _miniInfo("Expiry", "${r["expiry_date"] ?? "—"}"),
+                  ],
+                ),
+              ],
+            ),
+          );
         }).toList(),
       ),
     ));
+  }
+
+  // ADD this helper inside _EMDBGTabState
+  Widget _miniInfo(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xffe2e8f0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: const TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
+              color: Color(0xff94a3b8),
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+          ),
+        ],
+      ),
+    );
   }
 
   Color _statusColor(String status) {

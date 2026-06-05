@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class CustomersTab extends StatefulWidget {
   final String token;
@@ -16,6 +17,7 @@ class _CustomersTabState extends State<CustomersTab> {
 
   bool loading = true;
   String? errorText;
+  String? tenantSlug;
 
   Map<String, dynamic> stats = {};
   Map<String, dynamic> filterOpts = {};
@@ -70,7 +72,17 @@ class _CustomersTabState extends State<CustomersTab> {
   @override
   void initState() {
     super.initState();
-    loadData();
+    _initAndLoad();
+  }
+
+  Future<void> _initAndLoad() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        tenantSlug = prefs.getString('tenant_slug') ?? '';
+      });
+      await loadData();
+    }
   }
 
   num n(dynamic v) {
@@ -133,7 +145,7 @@ class _CustomersTabState extends State<CustomersTab> {
   Future<dynamic> getJson(String path, [Map<String, String>? params]) async {
     final uri = Uri.parse('$baseUrl$path').replace(queryParameters: params);
     final res = await http.get(uri, headers: {
-      'X-Tenant-Slug': 'ascent',
+      'X-Tenant-Slug': tenantSlug ?? '',
       'Authorization': 'Bearer ${widget.token}',
       'Accept': 'application/json',
     });
@@ -189,10 +201,11 @@ class _CustomersTabState extends State<CustomersTab> {
     }).toList();
   }
 
-  List<Map<String, dynamic>> grouped(String keyType) {
+  List<Map<String, dynamic>> grouped(String keyType, {List<Map<String, dynamic>>? source}) {
+    final rows = source ?? filteredRows;
     final m = <String, Map<String, dynamic>>{};
 
-    for (final r in filteredRows) {
+    for (final r in rows) {
       var key = 'Unknown';
       if (keyType == 'state') key = cState(r).isEmpty ? 'Unknown' : cState(r);
       if (keyType == 'sector') key = cSector(r).isEmpty ? 'General' : cSector(r);
@@ -350,77 +363,45 @@ class _CustomersTabState extends State<CustomersTab> {
   }
 
   Widget _filterBar() {
-    final owners = filterOpts['owners'] is List ? filterOpts['owners'] as List : [];
-    final groups = filterOpts['groups'] is List ? filterOpts['groups'] as List : masterGroups;
-
     return _card(
       Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(children: [
-              Expanded(child: _dateField('From', dateFrom, (v) => setState(() => dateFrom = v))),
-              const SizedBox(width: 10),
-              Expanded(child: _dateField('To', dateTo, (v) => setState(() => dateTo = v))),
-            ]),
-            const SizedBox(height: 10),
-            DropdownButtonFormField<String>(
-              value: assignedTo,
-              isExpanded: true,
-              decoration: _input('Owner / KAM'),
-              items: owners.map<DropdownMenuItem<String>>((o) {
-                final id = '${(o as Map)['id']}';
-                final name = '${o['name'] ?? o['full_name'] ?? o['username'] ?? id}';
-                return DropdownMenuItem(value: id, child: Text(name, overflow: TextOverflow.ellipsis));
-              }).toList(),
-              onChanged: (v) => setState(() => assignedTo = v),
-            ),
-            if (groups.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              DropdownButtonFormField<String>(
-                value: group,
-                isExpanded: true,
-                decoration: _input('Group'),
-                items: groups.map<DropdownMenuItem<String>>((g) {
-                  final map = g as Map;
-                  final name = '${map['name'] ?? map['group_name'] ?? map['id']}';
-                  return DropdownMenuItem(value: name, child: Text(name, overflow: TextOverflow.ellipsis));
-                }).toList(),
-                onChanged: (v) => setState(() => group = v),
+            Row(children: const [
+              Icon(Icons.filter_alt_outlined, size: 14, color: Color(0xff334155)),
+              SizedBox(width: 8),
+              Text(
+                'FILTERS',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xff334155),
+                  letterSpacing: 1.4,
+                ),
               ),
-            ],
+            ]),
+            const SizedBox(height: 16),
+            Row(children: [
+              Expanded(child: _dateField('FROM DATE', dateFrom, (v) => setState(() => dateFrom = v))),
+              const SizedBox(width: 10),
+              Expanded(child: _dateField('TO DATE', dateTo, (v) => setState(() => dateTo = v))),
+            ]),
             const SizedBox(height: 12),
-            Row(children: [
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: loadData,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xff4f46e5),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                  ),
-                  child: const Text('Apply'),
+            SizedBox(
+              width: 120,
+              child: ElevatedButton(
+                onPressed: loadData,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xff0f172a),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
+                child: const Text('Apply', style: TextStyle(fontWeight: FontWeight.w800)),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () {
-                    setState(() {
-                      dateFrom = null;
-                      dateTo = null;
-                      assignedTo = null;
-                      group = null;
-                      activeState = null;
-                      activeSector = null;
-                    });
-                    loadData();
-                  },
-                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 13)),
-                  child: const Text('Reset'),
-                ),
-              ),
-            ]),
+            ),
           ],
         ),
       ),
@@ -428,10 +409,43 @@ class _CustomersTabState extends State<CustomersTab> {
   }
 
   Widget _dateField(String label, String? value, Function(String?) onChanged) {
-    return TextFormField(
-      initialValue: value,
-      decoration: _input(label).copyWith(hintText: 'YYYY-MM-DD'),
-      onChanged: onChanged,
+    return InkWell(
+      onTap: () async {
+        final now = DateTime.now();
+
+        final initialDate = DateTime.tryParse(value ?? '') ?? now;
+
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: initialDate,
+          firstDate: DateTime(2000),
+          lastDate: DateTime(now.year + 10),
+          helpText: label,
+          confirmText: 'Apply',
+          cancelText: 'Cancel',
+        );
+
+        if (picked != null) {
+          onChanged(DateFormat('yyyy-MM-dd').format(picked));
+        }
+      },
+      borderRadius: BorderRadius.circular(10),
+      child: InputDecorator(
+        decoration: _input(label).copyWith(
+          hintText: 'yyyy-mm-dd',
+          suffixIcon: const Icon(Icons.calendar_today, size: 17),
+        ),
+        child: Text(
+          value?.isNotEmpty == true ? value! : 'yyyy-mm-dd',
+          style: TextStyle(
+            fontSize: 13,
+            color: value?.isNotEmpty == true
+                ? const Color(0xff0f172a)
+                : const Color(0xff64748b),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
     );
   }
 
@@ -600,70 +614,52 @@ class _CustomersTabState extends State<CustomersTab> {
   }
 
   Widget _sectorAnalysis() {
-    final stateTiles = grouped('state').take(18).toList();
-    final sectorChips = grouped('sector').take(14).toList();
-    final maxStateTile = stateTiles.isEmpty ? 1 : n(stateTiles.first['count']);
+    final sectorChips = grouped('sector', source: tableRows).take(14).toList();
     final sectorRows = grouped('sector');
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      _section('04', 'Sector Analysis', 'Tap a state or sector to filter'),
+      _section('04', 'Sector Analysis', 'Tap a sector to filter'),
       const SizedBox(height: 10),
+
       _card(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _cardHead('Filter by State', 'Choose a state before viewing sector analysis'),
+        _cardHead('Filter by Sector', 'Choose a sector to narrow list'),
         Padding(
           padding: const EdgeInsets.all(14),
           child: Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: stateTiles.map((t) {
-              final state = t['key'];
-              final selected = activeState == state;
-              final intensity = ((n(t['count']) / maxStateTile) * 5).round();
-              final bg = selected ? const Color(0xff4f46e5) : intensity >= 3 ? const Color(0xffe0e7ff) : const Color(0xfff8fafc);
-              final fg = selected ? Colors.white : const Color(0xff4338ca);
-              final abbr = stateAbbr[state] ?? state.toString().substring(0, state.toString().length.clamp(0, 6));
-              return InkWell(
-                onTap: () => setState(() => activeState = selected ? null : state),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(9), border: Border.all(color: const Color(0xffe2e8f0))),
-                  child: Text('$abbr ${t['count']}', style: TextStyle(color: fg, fontSize: 12, fontWeight: FontWeight.w700)),
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-      ])),
-      const SizedBox(height: 12),
-      _card(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _cardHead('Filter by Sector', 'Choose a sector to narrow cards and analysis'),
-        Padding(
-          padding: const EdgeInsets.all(14),
-          child: Wrap(
-            spacing: 6,
-            runSpacing: 6,
+            spacing: 8,
+            runSpacing: 8,
             children: sectorChips.map((c) {
               final sector = c['key'];
               final selected = activeSector == sector;
-              return InkWell(
-                onTap: () => setState(() => activeSector = selected ? null : sector),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: selected ? const Color(0xff7c3aed) : const Color(0xfff5f3ff),
-                    borderRadius: BorderRadius.circular(30),
-                    border: Border.all(color: const Color(0xffddd6fe)),
-                  ),
-                  child: Text('$sector (${c['count']})', style: TextStyle(color: selected ? Colors.white : const Color(0xff6d28d9), fontSize: 12, fontWeight: FontWeight.w700)),
+
+              return ChoiceChip(
+                label: Text('$sector (${fmtN(c['count'])})'),
+                selected: selected,
+                onSelected: (_) {
+                  setState(() => activeSector = selected ? null : sector);
+                },
+                showCheckmark: false,
+                selectedColor: const Color(0xff2563eb),
+                backgroundColor: const Color(0xfff1f5f9),
+                side: BorderSide(
+                  color: selected ? const Color(0xff2563eb) : const Color(0xffe2e8f0),
                 ),
+                labelStyle: TextStyle(
+                  color: selected ? Colors.white : const Color(0xff475569),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               );
             }).toList(),
           ),
         ),
       ])),
+
       const SizedBox(height: 14),
+
       _card(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _cardHead('Customer Distribution by Sector', 'Potential, leads, tenders & won value per sector'),
+        _cardHead('Customer Distribution by Sector', 'List view only'),
         if (sectorRows.isEmpty)
           _empty('No sector data')
         else
@@ -672,32 +668,126 @@ class _CustomersTabState extends State<CustomersTab> {
     ]);
   }
 
+  Widget _selectCard({
+    required String title,
+    required String count,
+    required bool selected,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.all(13),
+          decoration: BoxDecoration(
+            color: selected ? color.withOpacity(.10) : Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: selected ? color : const Color(0xffe2e8f0), width: selected ? 1.4 : 1),
+            boxShadow: const [BoxShadow(color: Color(0x08000000), blurRadius: 10, offset: Offset(0, 3))],
+          ),
+          child: Row(children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: selected ? color : color.withOpacity(.10),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(Icons.business_center_outlined, color: selected ? Colors.white : color, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Color(0xff0f172a))),
+              const SizedBox(height: 4),
+              Text(count, style: const TextStyle(fontSize: 11, color: Color(0xff64748b), fontWeight: FontWeight.w700)),
+            ])),
+            Icon(selected ? Icons.check_circle : Icons.chevron_right, color: selected ? color : const Color(0xff94a3b8), size: 20),
+          ]),
+        ),
+      ),
+    );
+  }
+
   Widget _sectorRowCard(Map<String, dynamic> r) {
     final total = filteredRows.length;
     final selected = activeSector == r['key'];
+
     return InkWell(
       onTap: () => setState(() => activeSector = selected ? null : r['key']),
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xfff5f3ff) : Colors.white,
+          color: selected ? const Color(0xffeff6ff) : Colors.white,
           border: const Border(bottom: BorderSide(color: Color(0xfff1f5f9))),
         ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Expanded(child: Text(r['key'], style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900), overflow: TextOverflow.ellipsis)),
-            Text('${pct(n(r['count']), total)}%', style: const TextStyle(fontSize: 12, color: Color(0xff64748b), fontWeight: FontWeight.w800)),
-          ]),
-          const SizedBox(height: 10),
-          _metricGrid([
-            ['Customers', fmtN(r['count'])],
-            ['Active %', '${pct(n(r['active']), n(r['count']))}%'],
-            ['Potential ₹', fmtRs(r['potential'])],
-            ['Leads ₹', fmtRs(r['lead'])],
-            ['Tenders ₹', fmtRs(r['tender'])],
-            ['Won ₹', fmtRs(r['won'])],
-          ]),
-        ]),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: selected ? const Color(0xff2563eb) : const Color(0xfff1f5f9),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Icon(
+                Icons.business_center_outlined,
+                color: selected ? Colors.white : const Color(0xff64748b),
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${r['key']}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xff0f172a),
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    '${fmtN(r['count'])} customers · ${pct(n(r['count']), total)}% share · Active ${pct(n(r['active']), n(r['count']))}%',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xff64748b),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _inlineValue('Potential', fmtRs(r['potential']), const Color(0xff7c3aed)),
+                      _inlineValue('Leads', fmtRs(r['lead']), const Color(0xff2563eb)),
+                      _inlineValue('Tenders', fmtRs(r['tender']), const Color(0xffd97706)),
+                      _inlineValue('Won', fmtRs(r['won']), const Color(0xff059669)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            Icon(
+              selected ? Icons.check_circle : Icons.chevron_right,
+              color: selected ? const Color(0xff2563eb) : const Color(0xff94a3b8),
+              size: 20,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -749,31 +839,115 @@ class _CustomersTabState extends State<CustomersTab> {
 
   Widget _comparisonRowCard(Map<String, dynamic> r) {
     final total = filteredRows.length;
+
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xfff1f5f9)))),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Expanded(child: Text(r['key'], overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900))),
-          Text('${fmtN(r['count'])} (${pct(n(r['count']), total)}%)', style: const TextStyle(fontSize: 11, color: Color(0xff64748b), fontWeight: FontWeight.w800)),
-        ]),
-        const SizedBox(height: 8),
-        LinearProgressIndicator(
-          minHeight: 6,
-          value: total == 0 ? 0 : n(r['count']) / total,
-          backgroundColor: const Color(0xfff1f5f9),
-          valueColor: const AlwaysStoppedAnimation(Color(0xff6366f1)),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: Color(0xfff1f5f9))),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: const Color(0xffeef2ff),
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: const Icon(
+              Icons.compare_arrows,
+              color: Color(0xff4f46e5),
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${r['key']}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xff0f172a),
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  '${fmtN(r['count'])} customers · ${pct(n(r['count']), total)}% share · ${fmtN(r['active'])} active',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xff64748b),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 10),
+
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: LinearProgressIndicator(
+                    minHeight: 6,
+                    value: total == 0 ? 0 : n(r['count']) / total,
+                    backgroundColor: const Color(0xfff1f5f9),
+                    valueColor: const AlwaysStoppedAnimation(Color(0xff4f46e5)),
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _inlineValue('Potential', fmtRs(r['potential']), const Color(0xff7c3aed)),
+                    _inlineValue('Leads', fmtRs(r['lead']), const Color(0xff2563eb)),
+                    _inlineValue('Tenders', fmtRs(r['tender']), const Color(0xffd97706)),
+                    _inlineValue('Won', fmtRs(r['won']), const Color(0xff059669)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _inlineValue(String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(.08),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: RichText(
+        text: TextSpan(
+          children: [
+            TextSpan(
+              text: '$label: ',
+              style: const TextStyle(
+                fontSize: 10,
+                color: Color(0xff64748b),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            TextSpan(
+              text: value,
+              style: TextStyle(
+                fontSize: 10,
+                color: color,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 10),
-        _metricGrid([
-          ['Total', fmtN(r['count'])],
-          ['Active', fmtN(r['active'])],
-          ['Potential ₹', fmtRs(r['potential'])],
-          ['Leads ₹', fmtRs(r['lead'])],
-          ['Tenders ₹', fmtRs(r['tender'])],
-          ['Won ₹', fmtRs(r['won'])],
-        ]),
-      ]),
+      ),
     );
   }
 
@@ -843,25 +1017,78 @@ class _CustomersTabState extends State<CustomersTab> {
   Widget _customerRowCard(Map<String, dynamic> r) {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xfff1f5f9)))),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Expanded(
-            child: Text(cName(r), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xff0f172a)), maxLines: 2, overflow: TextOverflow.ellipsis),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: Color(0xfff1f5f9))),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: const Color(0xffeef2ff),
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: const Icon(
+              Icons.groups,
+              color: Color(0xff4f46e5),
+              size: 20,
+            ),
           ),
-          if (cStatus(r).isNotEmpty) _smallBadge(cStatus(r)),
-        ]),
-        const SizedBox(height: 10),
-        _metricGrid([
-          ['State', dash(cState(r))],
-          ['Sector', dash(cSector(r))],
-          ['Category', dash(r['account_potential'])],
-          ['Potential ₹', fmtRs(cPotential(r))],
-          ['KAM', dash(cUser(r))],
-          ['Group', dash(cGroup(r))],
-          ['City', dash(cCity(r))],
-        ]),
-      ]),
+          const SizedBox(width: 12),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  Expanded(
+                    child: Text(
+                      cName(r),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xff0f172a),
+                      ),
+                    ),
+                  ),
+                  if (cStatus(r).isNotEmpty) _smallBadge(cStatus(r)),
+                ]),
+
+                const SizedBox(height: 5),
+
+                Text(
+                  '${dash(cSector(r))} · ${dash(cState(r))} · ${dash(cCity(r))}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xff64748b),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _inlineValue('Potential', fmtRs(cPotential(r)), const Color(0xff7c3aed)),
+                    _inlineValue('Category', dash(r['account_potential']), const Color(0xffd97706)),
+                    _inlineValue('KAM', dash(cUser(r)), const Color(0xff2563eb)),
+                    _inlineValue('Group', dash(cGroup(r)), const Color(0xff059669)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

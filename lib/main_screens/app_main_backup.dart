@@ -1,6 +1,7 @@
 import 'package:ascent_crm/main_screens/travel_management/Travel_tada_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'EMD_BG/emd_bg.dart' hide AppColors;
 import 'Leads/lead_list.dart' hide AppColors;
@@ -60,9 +61,12 @@ class _AppMainScreenState extends State<AppMainScreenBackup>
         Icons.admin_panel_settings_rounded, Color(0xFF64748B)),
   ];
 
+  String _tenantSlug = '';
+
   @override
   void initState() {
     super.initState();
+    _loadTenantSlug();
 
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -84,6 +88,13 @@ class _AppMainScreenState extends State<AppMainScreenBackup>
     super.dispose();
   }
 
+  Future<void> _loadTenantSlug() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _tenantSlug = prefs.getString('tenant_slug') ?? '';
+    });
+  }
+
   void _push(Widget page) => Navigator.push(context, _fadeRoute(page));
 
   PageRoute _fadeRoute(Widget p) =>
@@ -103,10 +114,10 @@ class _AppMainScreenState extends State<AppMainScreenBackup>
         _push(const LeadList());
         break;
       case "Opportunity":
-        _push(const OpportunityList());
+        _push(OpportunityList(tenantSlug: _tenantSlug));
         break;
       case "EMD/BG":
-        _push(const EmdBg());
+        _push(EmdBg(tenantSlug: _tenantSlug));
         break;
       case "KAM 360":
         _push(const Kam360Page());

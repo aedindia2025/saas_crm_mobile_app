@@ -165,12 +165,12 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-
   loginWithoutPin() async{
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('rememberMe', rememberMe);
-
+    var fcmToken = prefs.getString('FCM_tokel');
+    setState(() {});
     await prefs.setString('organizationName', organizationController.text);
     await prefs.setString('userName', usernameController.text);
 
@@ -187,8 +187,8 @@ class _LoginScreenState extends State<LoginScreen> {
       "username": usernameController.text.trim(),
       "password": passwordController.text.trim(),
       "remember_me": rememberMe,
+      "fcm_token":fcmToken,
     };
-
 
     try {
       final response = await ApiMethod.postRequest(
@@ -198,6 +198,7 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       print("Response: $response['status']");
+      print("Response data: $response");
 
       if (response["statusCode"] == 200) {
         Navigator.pop(context);
@@ -206,20 +207,21 @@ class _LoginScreenState extends State<LoginScreen> {
 
         if(challenge_id != null){
           _showPinDialog(challenge_id);
-        }else{
+        }
+        else{
           var auth_token = response['data'];
           print("auth_token=== ${auth_token['access_token']}");
 
           final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('auth_token', auth_token['access_token']  );
-
+          await prefs.setString('auth_token', auth_token['access_token']);
+          await prefs.setString('tenant_slug', organizationController.text.trim());
+          await prefs.setString('full_name', auth_token['full_name']);
 
           Navigator.pushReplacement(context,
             MaterialPageRoute(
               builder: (context) => DashboardShell(token: auth_token['access_token']),
             ),
           );
-
         }
 
       }if (response["statusCode"] != 200) {
@@ -540,7 +542,6 @@ class _LoginScreenState extends State<LoginScreen> {
     });
   }
 
-
   resendOTP(String challenge_id) async {
 
     Map<String, String> headers = {
@@ -611,7 +612,8 @@ class _LoginScreenState extends State<LoginScreen> {
         print("auth_token=== ${auth_token['access_token']}");
 
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('auth_token', auth_token['access_token']  );
+        await prefs.setString('auth_token', auth_token['access_token']);
+        await prefs.setString('tenant_slug', organizationController.text.trim());
         await prefs.setString('organizationName', organizationController.text.trim());
         await prefs.setString('userName', usernameController.text.trim());
 
@@ -674,6 +676,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString("auth_token", data["access_token"]);
+        await prefs.setString("tenant_slug", companyCodeController.text.trim());
         await prefs.setString("organizationName", companyCodeController.text.trim());
 
         Navigator.pushReplacement(

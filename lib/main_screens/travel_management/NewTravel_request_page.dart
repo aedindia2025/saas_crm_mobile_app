@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class NewTravelRequestPage extends StatefulWidget {
   final String baseUrl;
   final String token;
+  final String tenantSlug;
   final List<Map<String, dynamic>> customers;
   final Map<String, dynamic>? editData;
 
@@ -13,6 +14,7 @@ class NewTravelRequestPage extends StatefulWidget {
     super.key,
     required this.baseUrl,
     required this.token,
+    required this.tenantSlug,
     required this.customers,
     this.editData,
   });
@@ -67,7 +69,7 @@ class _NewTravelRequestPageState extends State<NewTravelRequestPage> {
 
   Map<String, String> get headers => {
     'Authorization': 'Bearer ${widget.token}',
-    'X-Tenant-Slug': 'ascent',
+    'X-Tenant-Slug': widget.tenantSlug,
     'Accept': 'application/json',
     'Content-Type': 'application/json',
   };

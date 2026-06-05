@@ -2,9 +2,9 @@ import 'dart:convert';
 
 import 'package:ascent_crm/main_screens/Leads/view_lead.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../api_helpers/api_method.dart';
 import '../opportunity/edit_opportunity.dart';
 import 'create_lead.dart';
 
@@ -38,7 +38,7 @@ class LeadList extends StatefulWidget {
 
 class _LeadListState extends State<LeadList> {
   static const String baseUrl = 'http://103.110.236.187:3076/api/v1';
-  static const String tenantSlug = 'ascent';
+  String? tenantSlug;
 
   bool showFilters = false;
   bool isLoading = true;
@@ -79,10 +79,11 @@ class _LeadListState extends State<LeadList> {
   Future<void> getSharedPref() async {
     final prefs = await SharedPreferences.getInstance();
     token = prefs.getString('auth_token');
+    tenantSlug = prefs.getString('tenant_slug');
 
-    if (token == null) {
+    if (token == null || tenantSlug == null) {
       setState(() => isLoading = false);
-      showSnack('Token not found', Colors.red);
+      showSnack(token == null ? 'Token not found' : 'Organization code not found', Colors.red);
       return;
     }
 
@@ -92,7 +93,7 @@ class _LeadListState extends State<LeadList> {
 
   Map<String, String> get headers => {
     'Authorization': 'Bearer $token',
-    'X-Tenant-Slug': tenantSlug,
+    'X-Tenant-Slug': tenantSlug ?? '',
     'Accept': 'application/json',
     'Content-Type': 'application/json',
   };
@@ -101,18 +102,18 @@ class _LeadListState extends State<LeadList> {
     if (token == null) return;
 
     try {
-      final customerRes = await http.get(
-        Uri.parse('$baseUrl/leads/team-customers'),
+      final customerRes = await ApiMethod.getRequest(
+        url: '$baseUrl/leads/team-customers',
         headers: headers,
       );
 
-      final userRes = await http.get(
-        Uri.parse('$baseUrl/leads/team-users'),
+      final userRes = await ApiMethod.getRequest(
+        url: '$baseUrl/leads/team-users',
         headers: headers,
       );
 
-      if (customerRes.statusCode == 200) {
-        final List data = jsonDecode(customerRes.body);
+      if (customerRes['statusCode'] == 200) {
+        final List data = customerRes['data'];
 
         setState(() {
           customers = data
@@ -125,11 +126,11 @@ class _LeadListState extends State<LeadList> {
               .toList();
         });
       } else {
-        showSnack('Customer dropdown failed: ${customerRes.body}', Colors.red);
+        showSnack('Customer dropdown failed: ${customerRes['data']}', Colors.red);
       }
 
-      if (userRes.statusCode == 200) {
-        final List data = jsonDecode(userRes.body);
+      if (userRes['statusCode'] == 200) {
+        final List data = userRes['data'];
 
         setState(() {
           assignedUsers = data
@@ -143,7 +144,7 @@ class _LeadListState extends State<LeadList> {
               .toList();
         });
       } else {
-        showSnack('Assigned dropdown failed: ${userRes.body}', Colors.red);
+        showSnack('Assigned dropdown failed: ${userRes['data']}', Colors.red);
       }
     } catch (e) {
       showSnack(e.toString(), Colors.red);
@@ -174,10 +175,10 @@ class _LeadListState extends State<LeadList> {
         queryParameters: query.isEmpty ? null : query,
       );
 
-      final response = await http.get(uri, headers: headers);
+      final response = await ApiMethod.getRequest(url: uri.toString(), headers: headers);
 
-      if (response.statusCode == 200) {
-        final List data = jsonDecode(response.body);
+      if (response['statusCode'] == 200) {
+        final List data = response['data'];
         final loaded = data.map((e) => Map<String, dynamic>.from(e)).toList();
 
         setState(() {
@@ -201,7 +202,7 @@ class _LeadListState extends State<LeadList> {
         });
       } else {
         setState(() => isLoading = false);
-        showSnack(extractError(response.body), Colors.red);
+        showSnack(extractError(jsonEncode(response['data'])), Colors.red);
       }
     } catch (e) {
       setState(() => isLoading = false);
@@ -218,17 +219,17 @@ class _LeadListState extends State<LeadList> {
     if (token == null) return;
 
     try {
-      final response = await http.patch(
-        Uri.parse('$baseUrl/leads/$leadId/status'),
+      final response = await ApiMethod.patchRequest(
+        url: '$baseUrl/leads/$leadId/status',
         headers: headers,
-        body: jsonEncode({'status': status}),
+        body: {'status': status},
       );
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
+      if (response['statusCode'] == 200 || response['statusCode'] == 201) {
         showSnack('Status updated successfully', Colors.green);
         await fetchLeads();
       } else {
-        showSnack(extractError(response.body), Colors.red);
+        showSnack(extractError(jsonEncode(response['data'])), Colors.red);
       }
     } catch (e) {
       showSnack(e.toString(), Colors.red);
@@ -1076,6 +1077,7 @@ class _LeadListState extends State<LeadList> {
             MaterialPageRoute(
               builder: (_) => EditOpportunity(
                 opportunityData: lead,
+                tenantSlug: tenantSlug ?? '',
               ),
             ),
           );

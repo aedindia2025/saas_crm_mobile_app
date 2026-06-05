@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "430610310146",
+    "project_id": "ascent-crm",
+    "storage_bucket": "ascent-crm.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:430610310146:android:5432689509d0fbec35b31b",
+        "android_client_info": {
+          "package_name": "com.ascent.crm"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBwjkkQIeg9FEYs2prmggm3tPZKN1Q5Ao0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

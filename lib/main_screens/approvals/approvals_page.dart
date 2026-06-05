@@ -1,10 +1,9 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../api_helpers/api_method.dart';
 import '../../api_helpers/api_urls.dart';
 import 'approval_detail_page.dart';
 
@@ -76,6 +75,7 @@ class _ApprovalsPageState extends State<ApprovalsPage>
   List<Map<String, dynamic>> history = [];
 
   String token = "";
+  String tenantSlug = "";
 
   String get  apiBase => "${ApiUrls.baseUrl}/api/v1";
 
@@ -83,7 +83,7 @@ class _ApprovalsPageState extends State<ApprovalsPage>
     "Authorization": "Bearer $token",
     "Accept": "application/json",
     "Content-Type": "application/json",
-    "X-Tenant-Slug": "ascent",
+    "X-Tenant-Slug": tenantSlug,
   };
 
   @override
@@ -96,6 +96,7 @@ class _ApprovalsPageState extends State<ApprovalsPage>
   Future<void> loadToken() async {
     final prefs = await SharedPreferences.getInstance();
     token = prefs.getString("auth_token") ?? "";
+    tenantSlug = prefs.getString("tenant_slug") ?? "";
 
     if (token.isEmpty) {
       showError("Token not found");
@@ -119,29 +120,25 @@ class _ApprovalsPageState extends State<ApprovalsPage>
     if (mounted && silent) setState(() => refreshing = true);
 
     try {
-      final legacyFuture = http.get(
-        Uri.parse("$apiBase/approvals/pending"),
-        headers: headers,
-      );
-
-      final dynamicFuture = http.get(
-        Uri.parse("$apiBase/approval-workflows/requests/pending"),
-        headers: headers,
-      );
-
       final results = await Future.wait([
-        legacyFuture,
-        dynamicFuture,
+        ApiMethod.getRequest(
+          url: "$apiBase/approvals/pending",
+          headers: headers,
+        ),
+        ApiMethod.getRequest(
+          url: "$apiBase/approval-workflows/requests/pending",
+          headers: headers,
+        ),
       ]);
 
-      final legacyResponse = results[0];
-      final dynamicResponse = results[1];
+      final legacyRes = results[0];
+      final dynamicRes = results[1];
 
       List<Map<String, dynamic>> legacyItems = [];
       List<Map<String, dynamic>> dynamicItems = [];
 
-      if (legacyResponse.statusCode == 200) {
-        final data = jsonDecode(legacyResponse.body);
+      if (legacyRes['statusCode'] == 200) {
+        final data = legacyRes['data'];
         legacyItems = data is Map && data["items"] is List
             ? List<Map<String, dynamic>>.from(data["items"])
             : data is List
@@ -150,8 +147,8 @@ class _ApprovalsPageState extends State<ApprovalsPage>
         legacyItems = legacyItems.map((e) => {...e, "kind": "legacy"}).toList();
       }
 
-      if (dynamicResponse.statusCode == 200) {
-        final data = jsonDecode(dynamicResponse.body);
+      if (dynamicRes['statusCode'] == 200) {
+        final data = dynamicRes['data'];
         dynamicItems = data is Map && data["items"] is List
             ? List<Map<String, dynamic>>.from(data["items"])
             : data is List
@@ -172,8 +169,8 @@ class _ApprovalsPageState extends State<ApprovalsPage>
 
       if (mounted) setState(() => pending = rows);
 
-      debugPrint("LEGACY PENDING: ${legacyResponse.statusCode} ${legacyResponse.body}");
-      debugPrint("DYNAMIC PENDING: ${dynamicResponse.statusCode} ${dynamicResponse.body}");
+      debugPrint("LEGACY PENDING: ${legacyRes['statusCode']} ${legacyRes['data']}");
+      debugPrint("DYNAMIC PENDING: ${dynamicRes['statusCode']} ${dynamicRes['data']}");
     } catch (e) {
       showError("Pending approvals error: $e");
     }
@@ -190,29 +187,25 @@ class _ApprovalsPageState extends State<ApprovalsPage>
     if (mounted) setState(() => loadingHistory = true);
 
     try {
-      final legacyFuture = http.get(
-        Uri.parse("$apiBase/approvals/history?page=1&per_page=50"),
-        headers: headers,
-      );
-
-      final dynamicFuture = http.get(
-        Uri.parse("$apiBase/approval-workflows/requests/history?page=1&per_page=50"),
-        headers: headers,
-      );
-
       final results = await Future.wait([
-        legacyFuture,
-        dynamicFuture,
+        ApiMethod.getRequest(
+          url: "$apiBase/approvals/history?page=1&per_page=50",
+          headers: headers,
+        ),
+        ApiMethod.getRequest(
+          url: "$apiBase/approval-workflows/requests/history?page=1&per_page=50",
+          headers: headers,
+        ),
       ]);
 
-      final legacyResponse = results[0];
-      final dynamicResponse = results[1];
+      final legacyRes = results[0];
+      final dynamicRes = results[1];
 
       List<Map<String, dynamic>> legacyItems = [];
       List<Map<String, dynamic>> dynamicItems = [];
 
-      if (legacyResponse.statusCode == 200) {
-        final data = jsonDecode(legacyResponse.body);
+      if (legacyRes['statusCode'] == 200) {
+        final data = legacyRes['data'];
 
         legacyItems = data is Map && data["items"] is List
             ? List<Map<String, dynamic>>.from(data["items"])
@@ -228,8 +221,8 @@ class _ApprovalsPageState extends State<ApprovalsPage>
             .toList();
       }
 
-      if (dynamicResponse.statusCode == 200) {
-        final data = jsonDecode(dynamicResponse.body);
+      if (dynamicRes['statusCode'] == 200) {
+        final data = dynamicRes['data'];
 
         dynamicItems = data is Map && data["items"] is List
             ? List<Map<String, dynamic>>.from(data["items"])
@@ -245,7 +238,7 @@ class _ApprovalsPageState extends State<ApprovalsPage>
             .toList();
       }
 
-      if (legacyResponse.statusCode != 200 && dynamicResponse.statusCode != 200) {
+      if (legacyRes['statusCode'] != 200 && dynamicRes['statusCode'] != 200) {
         showError("Failed to load approval history");
       }
 
@@ -267,8 +260,8 @@ class _ApprovalsPageState extends State<ApprovalsPage>
 
       if (mounted) setState(() => history = rows);
 
-      debugPrint("LEGACY HISTORY: ${legacyResponse.statusCode} ${legacyResponse.body}");
-      debugPrint("DYNAMIC HISTORY: ${dynamicResponse.statusCode} ${dynamicResponse.body}");
+      debugPrint("LEGACY HISTORY: ${legacyRes['statusCode']} ${legacyRes['data']}");
+      debugPrint("DYNAMIC HISTORY: ${dynamicRes['statusCode']} ${dynamicRes['data']}");
     } catch (e) {
       showError("History loading error: $e");
     }

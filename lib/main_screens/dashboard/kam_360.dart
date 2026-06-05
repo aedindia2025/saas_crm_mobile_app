@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class KAM360Tab extends StatefulWidget {
   final String token;
@@ -17,6 +18,7 @@ class _KAM360TabState extends State<KAM360Tab> {
 
   bool loading = true;
   Map<String, dynamic>? data;
+  String? tenantSlug;
 
   String? dateFrom;
   String? dateTo;
@@ -29,7 +31,17 @@ class _KAM360TabState extends State<KAM360Tab> {
   @override
   void initState() {
     super.initState();
-    loadData();
+    _initAndLoad();
+  }
+
+  Future<void> _initAndLoad() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        tenantSlug = prefs.getString('tenant_slug') ?? '';
+      });
+      await loadData();
+    }
   }
 
   num n(dynamic v) => v == null ? 0 : num.tryParse(v.toString()) ?? 0;
@@ -69,7 +81,7 @@ class _KAM360TabState extends State<KAM360Tab> {
           .replace(queryParameters: queryParams);
 
       final res = await http.get(uri, headers: {
-        'X-Tenant-Slug': 'ascent',
+        'X-Tenant-Slug': tenantSlug ?? '',
         "Authorization": "Bearer ${widget.token}",
         "Accept": "application/json",
       });
@@ -82,7 +94,7 @@ class _KAM360TabState extends State<KAM360Tab> {
         );
 
         final fallbackRes = await http.get(fallback, headers: {
-          'X-Tenant-Slug': 'ascent',
+          'X-Tenant-Slug': tenantSlug ?? '',
           "Authorization": "Bearer ${widget.token}",
           "Accept": "application/json",
         });
@@ -222,7 +234,7 @@ class _KAM360TabState extends State<KAM360Tab> {
           .replace(queryParameters: {"user_id": "$kamId", "own_only": "true"});
 
       final res = await http.get(uri, headers: {
-        'X-Tenant-Slug': 'ascent',
+        'X-Tenant-Slug': tenantSlug ?? '',
         "Authorization": "Bearer ${widget.token}",
         "Accept": "application/json",
       });
@@ -600,28 +612,55 @@ class _KAM360TabState extends State<KAM360Tab> {
 
   Widget _progressRow(String label, num value, num total, Color color, {String? extra}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 7),
-      child: Row(children: [
-        SizedBox(width: 105, child: Text(label,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700))),
-        Expanded(
-          child: LinearProgressIndicator(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                fmtN(value),
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xff4338ca),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 7),
+          LinearProgressIndicator(
             value: total == 0 ? 0 : (value / total).clamp(0, 1),
             minHeight: 9,
             backgroundColor: const Color(0xfff1f5f9),
             valueColor: AlwaysStoppedAnimation(color),
           ),
-        ),
-        const SizedBox(width: 8),
-        SizedBox(
-          width: 92,
-          child: Text(extra ?? fmtN(value),
+          if (extra != null) ...[
+            const SizedBox(height: 5),
+            Text(
+              extra,
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.right,
-              style: const TextStyle(fontSize: 10, color: Color(0xff64748b))),
-        ),
-      ]),
+              style: const TextStyle(
+                fontSize: 10,
+                color: Color(0xff64748b),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -704,42 +743,61 @@ class _KAM360TabState extends State<KAM360Tab> {
   }
 
   Widget _groupComparisonTable() {
-    return _card(SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: DataTable(
-        headingRowColor: WidgetStateProperty.all(const Color(0xfff8fafc)),
-        columns: const [
-          DataColumn(label: Text("Group")),
-          DataColumn(label: Text("Members")),
-          DataColumn(label: Text("Customers")),
-          DataColumn(label: Text("Active Cust")),
-          DataColumn(label: Text("Leads")),
-          DataColumn(label: Text("Converted")),
-          DataColumn(label: Text("Conv %")),
-          DataColumn(label: Text("Tenders")),
-          DataColumn(label: Text("Won")),
-          DataColumn(label: Text("Win %")),
-          DataColumn(label: Text("Pipeline ₹")),
-        ],
-        rows: groups.map((g) {
-          return DataRow(cells: [
-            DataCell(Text("${g["name"]}", style: const TextStyle(fontWeight: FontWeight.w800))),
-            DataCell(Text(fmtN(g["members"]))),
-            DataCell(Text(fmtN(g["customers_total"]))),
-            DataCell(Text(fmtN(g["customers_active"]))),
-            DataCell(Text(fmtN(g["leads_total"]))),
-            DataCell(Text(fmtN(g["leads_converted"]))),
-            DataCell(_badge("${pct(n(g["leads_converted"]), n(g["leads_total"]))}%", const Color(0xff059669))),
-            DataCell(Text(fmtN(g["tenders_total"]))),
-            DataCell(Text(fmtN(g["tenders_won"]))),
-            DataCell(_badge("${pct(n(g["tenders_won"]), n(g["tenders_total"]))}%", const Color(0xff0284c7))),
-            DataCell(Text(fmtRs(g["pipeline"]))),
-          ]);
+    return _card(Padding(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        children: groups.map((g) {
+          final conv = pct(n(g["leads_converted"]), n(g["leads_total"]));
+          final win = pct(n(g["tenders_won"]), n(g["tenders_total"]));
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xfff8fafc),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xffe2e8f0)),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                const CircleAvatar(
+                  backgroundColor: Color(0xffeef2ff),
+                  child: Icon(Icons.groups_2, color: Color(0xff4338ca), size: 19),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text("${g["name"]}",
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900)),
+                ),
+                Text(fmtRs(g["pipeline"]),
+                    style: const TextStyle(color: Color(0xff4338ca), fontWeight: FontWeight.w900)),
+              ]),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _miniInfo("Members", fmtN(g["members"])),
+                  _miniInfo("Customers", fmtN(g["customers_total"])),
+                  _miniInfo("Active Cust", fmtN(g["customers_active"])),
+                  _miniInfo("Leads", fmtN(g["leads_total"])),
+                  _miniInfo("Converted", fmtN(g["leads_converted"])),
+                  _miniInfo("Conv %", "$conv%"),
+                  _miniInfo("Tenders", fmtN(g["tenders_total"])),
+                  _miniInfo("Won", fmtN(g["tenders_won"])),
+                  _miniInfo("Win %", "$win%"),
+                ],
+              ),
+            ]),
+          );
         }).toList(),
       ),
     ));
   }
 
+// REPLACE _kamScorecardTable()
   Widget _kamScorecardTable() {
     final sorted = [...kams]..sort((a, b) {
       final bs = n(b["score"] ?? score(b));
@@ -747,76 +805,103 @@ class _KAM360TabState extends State<KAM360Tab> {
       return bs.compareTo(as);
     });
 
-    return _card(SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: DataTable(
-        headingRowColor: WidgetStateProperty.all(const Color(0xfff8fafc)),
-        columns: const [
-          DataColumn(label: Text("")),
-          DataColumn(label: Text("KAM")),
-          DataColumn(label: Text("Group")),
-          DataColumn(label: Text("Cust")),
-          DataColumn(label: Text("Active")),
-          DataColumn(label: Text("Leads")),
-          DataColumn(label: Text("Converted")),
-          DataColumn(label: Text("Lost")),
-          DataColumn(label: Text("Pipeline")),
-          DataColumn(label: Text("Tenders")),
-          DataColumn(label: Text("Won")),
-          DataColumn(label: Text("Travel")),
-          DataColumn(label: Text("EMD/BG")),
-          DataColumn(label: Text("Score")),
-          DataColumn(label: Text("Target ₹")),
-          DataColumn(label: Text("Won ₹")),
-        ],
-        rows: sorted.expand((k) {
+    return _card(Padding(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        children: sorted.map((k) {
           final kamId = n(k["id"]).toInt();
           final isExpanded = expandedKamId == kamId;
           final s = n(k["score"] ?? score(k)).toInt();
+          final color = s >= 70
+              ? const Color(0xff059669)
+              : s >= 45
+              ? const Color(0xffd97706)
+              : const Color(0xffdc2626);
 
-          final main = DataRow(
-            color: WidgetStateProperty.all(isExpanded ? const Color(0xffeef2ff) : Colors.white),
-            cells: [
-              DataCell(IconButton(
-                icon: Icon(isExpanded ? Icons.keyboard_arrow_down : Icons.chevron_right),
-                onPressed: () => toggleKamCustomers(kamId),
-              )),
-              DataCell(Row(children: [
-                CircleAvatar(radius: 14, backgroundColor: const Color(0xffeef2ff), child: Text("${k["name"] ?? "?"}".substring(0, 1).toUpperCase())),
-                const SizedBox(width: 8),
-                Text("${k["name"] ?? "—"}", style: const TextStyle(fontWeight: FontWeight.w800)),
-              ])),
-              DataCell(Text("${k["group"] ?? "—"}")),
-              DataCell(Text(fmtN(k["customers_total"]))),
-              DataCell(Text(fmtN(k["customers_active"]))),
-              DataCell(Text(fmtN(k["leads_total"]))),
-              DataCell(Text(fmtN(k["leads_converted"]))),
-              DataCell(Text(fmtN(k["leads_lost"]))),
-              DataCell(Text(fmtRs(k["leads_pipeline"]))),
-              DataCell(Text(fmtN(k["tenders_total"]))),
-              DataCell(Text(fmtN(k["tenders_won"]))),
-              DataCell(Text(fmtN(k["travel_total"]))),
-              DataCell(Text(fmtN(k["emdbg_active"]))),
-              DataCell(_scoreBar(s)),
-              DataCell(Text(n(k["sales_target"]) > 0 ? fmtRs(k["sales_target"]) : "—")),
-              DataCell(Text(n(k["won_tender_value"]) > 0 ? fmtRs(k["won_tender_value"]) : "—")),
-            ],
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: isExpanded ? const Color(0xffeef2ff) : const Color(0xfff8fafc),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: isExpanded ? const Color(0xffc7d2fe) : const Color(0xffe2e8f0),
+              ),
+            ),
+            child: Column(children: [
+              InkWell(
+                borderRadius: BorderRadius.circular(18),
+                onTap: () => toggleKamCustomers(kamId),
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      CircleAvatar(
+                        backgroundColor: const Color(0xff4338ca),
+                        child: Text(
+                          "${k["name"] ?? "?"}".substring(0, 1).toUpperCase(),
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text("${k["name"] ?? "—"}",
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
+                          const SizedBox(height: 3),
+                          Text("${k["group"] ?? "—"}",
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 11, color: Color(0xff64748b))),
+                        ]),
+                      ),
+                      _badge("Score $s", color),
+                      const SizedBox(width: 4),
+                      Icon(isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                          color: const Color(0xff64748b)),
+                    ]),
+                    const SizedBox(height: 12),
+                    LinearProgressIndicator(
+                      value: (s / 100).clamp(0, 1),
+                      minHeight: 8,
+                      backgroundColor: const Color(0xffe2e8f0),
+                      valueColor: AlwaysStoppedAnimation(color),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _miniInfo("Customers", fmtN(k["customers_total"])),
+                        _miniInfo("Active", fmtN(k["customers_active"])),
+                        _miniInfo("Leads", fmtN(k["leads_total"])),
+                        _miniInfo("Converted", fmtN(k["leads_converted"])),
+                        _miniInfo("Lost", fmtN(k["leads_lost"])),
+                        _miniInfo("Pipeline", fmtRs(k["leads_pipeline"])),
+                        _miniInfo("Tenders", fmtN(k["tenders_total"])),
+                        _miniInfo("Won", fmtN(k["tenders_won"])),
+                        _miniInfo("Travel", fmtN(k["travel_total"])),
+                        _miniInfo("EMD/BG", fmtN(k["emdbg_active"])),
+                        _miniInfo("Target", n(k["sales_target"]) > 0 ? fmtRs(k["sales_target"]) : "—"),
+                        _miniInfo("Won ₹", n(k["won_tender_value"]) > 0 ? fmtRs(k["won_tender_value"]) : "—"),
+                      ],
+                    ),
+                  ]),
+                ),
+              ),
+              if (isExpanded) ...[
+                const Divider(height: 1, color: Color(0xffc7d2fe)),
+                _customerDetail(k),
+              ],
+            ]),
           );
-
-          if (!isExpanded) return [main];
-
-          final detail = DataRow(cells: [
-            const DataCell(SizedBox()),
-            DataCell(SizedBox(width: 760, child: _customerDetail(k))),
-            ...List.generate(14, (_) => const DataCell(SizedBox())),
-          ]);
-
-          return [main, detail];
         }).toList(),
       ),
     ));
   }
 
+// REPLACE _customerDetail()
   Widget _customerDetail(Map<String, dynamic> kam) {
     final id = n(kam["id"]).toInt();
 
@@ -841,24 +926,37 @@ class _KAM360TabState extends State<KAM360Tab> {
     }
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: DataTable(
-        headingRowColor: WidgetStateProperty.all(const Color(0xfff1f5f9)),
-        columns: const [
-          DataColumn(label: Text("Customer")),
-          DataColumn(label: Text("Vertical")),
-          DataColumn(label: Text("Lead ₹")),
-          DataColumn(label: Text("Tender ₹")),
-          DataColumn(label: Text("Won ₹")),
-        ],
-        rows: customers.map((c) {
-          return DataRow(cells: [
-            DataCell(Text("${c["customer_name"] ?? "—"}")),
-            DataCell(Text("${c["vertical"] ?? "—"}")),
-            DataCell(Text(n(c["lead_value"]) > 0 ? fmtRs(c["lead_value"]) : "—")),
-            DataCell(Text(n(c["tender_value"]) > 0 ? fmtRs(c["tender_value"]) : "—")),
-            DataCell(Text(n(c["won_value"]) > 0 ? fmtRs(c["won_value"]) : "—")),
-          ]);
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        children: customers.map((c) {
+          return Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xffe2e8f0)),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text("${c["customer_name"] ?? "—"}",
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w900)),
+              const SizedBox(height: 4),
+              Text("${c["vertical"] ?? "—"}",
+                  style: const TextStyle(fontSize: 11, color: Color(0xff64748b))),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _miniInfo("Lead ₹", n(c["lead_value"]) > 0 ? fmtRs(c["lead_value"]) : "—"),
+                  _miniInfo("Tender ₹", n(c["tender_value"]) > 0 ? fmtRs(c["tender_value"]) : "—"),
+                  _miniInfo("Won ₹", n(c["won_value"]) > 0 ? fmtRs(c["won_value"]) : "—"),
+                ],
+              ),
+            ]),
+          );
         }).toList(),
       ),
     );
@@ -966,16 +1064,60 @@ class _KAM360TabState extends State<KAM360Tab> {
     return _kamScorecardTable();
   }
 
+
+  Widget _miniInfo(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xffe2e8f0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label.toUpperCase(),
+              style: const TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w900,
+                color: Color(0xff94a3b8),
+              )),
+          const SizedBox(height: 3),
+          Text(value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+        ],
+      ),
+    );
+  }
+
   Widget _groupPerformanceChart() {
     final list = groups.take(8).toList();
-    final max = list.isEmpty ? 1 : list.map((g) => n(g["leads_total"])).reduce((a, b) => a > b ? a : b);
+    final max = list.isEmpty
+        ? 1
+        : list.map((g) => n(g["leads_total"])).reduce((a, b) => a > b ? a : b);
 
     return _chartBox(
       "Group lead performance",
       "Total leads vs conversions",
-      Column(children: list.map((g) {
-        return _progressRow("${g["name"]}", n(g["leads_total"]), max, const Color(0xff4338ca), extra: "Converted ${fmtN(g["leads_converted"])} · Won ${fmtN(g["tenders_won"])}");
-      }).toList()),
+      ListView.separated(
+        padding: EdgeInsets.zero,
+        itemCount: list.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        itemBuilder: (_, i) {
+          final g = list[i];
+
+          return _progressRow(
+            "${g["name"]}",
+            n(g["leads_total"]),
+            max,
+            const Color(0xff4338ca),
+            extra: "Converted ${fmtN(g["leads_converted"])} · Won ${fmtN(g["tenders_won"])}",
+          );
+        },
+      ),
     );
   }
 

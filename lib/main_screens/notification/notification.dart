@@ -19,6 +19,7 @@ class _NotificationState extends State<NotificationPage> {
   bool unreadOnly = false;
 
   String token = '';
+  String tenantSlug = '';
 
   List<Map<String, dynamic>> notifications = [];
   int unreadCount = 0;
@@ -29,7 +30,7 @@ class _NotificationState extends State<NotificationPage> {
     "Authorization": "Bearer $token",
     "Accept": "application/json",
     "Content-Type": "application/json",
-    "X-Tenant-Slug": "ascent",
+    "X-Tenant-Slug": tenantSlug,
   };
 
   @override
@@ -41,6 +42,7 @@ class _NotificationState extends State<NotificationPage> {
   Future<void> loadToken() async {
     final prefs = await SharedPreferences.getInstance();
     token = prefs.getString('auth_token') ?? '';
+    tenantSlug = prefs.getString('tenant_slug') ?? '';
 
     if (token.isEmpty) {
       setState(() => isLoading = false);
@@ -624,10 +626,7 @@ class _NotificationState extends State<NotificationPage> {
           ],
         ),
         actions: [
-          IconButton(
-            onPressed: loadNotifications,
-            icon: const Icon(Icons.refresh, color: Color(0xff64748B)),
-          ),
+
           if (unreadCount > 0)
             TextButton.icon(
               onPressed: markAllRead,

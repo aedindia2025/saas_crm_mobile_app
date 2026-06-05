@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class TravelTab extends StatefulWidget {
   final String token;
@@ -21,6 +22,7 @@ class _TravelTabState extends State<TravelTab> {
 
   bool loading = true;
   Map<String, dynamic>? data;
+  String tenantSlug = "";
 
   String? dateFrom;
   String? dateTo;
@@ -34,6 +36,14 @@ class _TravelTabState extends State<TravelTab> {
   @override
   void initState() {
     super.initState();
+    _initAndLoad();
+  }
+
+  Future<void> _initAndLoad() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      tenantSlug = prefs.getString('tenant_slug') ?? '';
+    });
     loadData();
   }
 
@@ -80,7 +90,7 @@ class _TravelTabState extends State<TravelTab> {
     final res = await http.get(
       uri,
       headers: {
-        'X-Tenant-Slug': 'ascent',
+        'X-Tenant-Slug': tenantSlug,
         "Authorization": "Bearer ${widget.token}",
         "Accept": "application/json",
       },
@@ -264,144 +274,89 @@ class _TravelTabState extends State<TravelTab> {
     );
   }
 
-  Widget _header(
-      num total,
-      num approved,
-      num pending,
-      num advance,
-      ) {
-    if (isMobile) {
-      return _card(
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
+  Widget _header(num total, num approved, num pending, num advance) {
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 16 : 20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xff581c87), Color(0xff7e22ce), Color(0xff9333ea)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: const [
+          BoxShadow(color: Color(0x227e22ce), blurRadius: 20, offset: Offset(0, 8)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(.16),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: const Icon(Icons.flight_takeoff_rounded, color: Colors.white),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text("Travel & TA/DA",
+                    style: TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.w900)),
+                SizedBox(height: 4),
+                Text("Travel requests · approvals · advance tracking",
+                    style: TextStyle(color: Color(0xfff3e8ff), fontSize: 12)),
+              ]),
+            ),
+            IconButton(
+              onPressed: loading ? null : loadData,
+              icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+            ),
+          ]),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: const Color(0xfff3e8ff),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: const Icon(
-                      Icons.navigation,
-                      color: Color(0xff7e22ce),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "Travel & TA/DA",
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          "Travel requests · approvals · advance tracking",
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Color(0xff64748b),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _mobileHeadStat("Total", fmtN(total), const Color(0xff0f172a)),
-                  _mobileHeadStat("Approved", fmtN(approved), const Color(0xff059669)),
-                  _mobileHeadStat("Pending", fmtN(pending), const Color(0xffd97706)),
-                  _mobileHeadStat("Advance", fmtRs(advance), const Color(0xff0284c7)),
-                ],
-              ),
-              const SizedBox(height: 14),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: loading ? null : loadData,
-                  icon: const Icon(Icons.refresh, size: 16),
-                  label: Text(loading ? "Refreshing..." : "Refresh"),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xff7e22ce),
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-              ),
+              _travelHeadChip("Total", fmtN(total), Icons.navigation),
+              _travelHeadChip("Approved", fmtN(approved), Icons.check_circle),
+              _travelHeadChip("Pending", fmtN(pending), Icons.pending_actions),
+              _travelHeadChip("Advance", fmtRs(advance), Icons.currency_rupee),
             ],
           ),
-        ),
-      );
-    }
-
-    return _card(
-      Padding(
-        padding: const EdgeInsets.all(20),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: const Color(0xfff3e8ff),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: const Icon(
-                Icons.navigation,
-                color: Color(0xff7e22ce),
-              ),
-            ),
-            const SizedBox(width: 14),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Travel & TA/DA",
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    "Travel requests · approvals · advance tracking",
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Color(0xff64748b),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            _headStat("Total", fmtN(total), const Color(0xff0f172a)),
-            _headStat("Approved", fmtN(approved), const Color(0xff059669)),
-            _headStat("Pending", fmtN(pending), const Color(0xffd97706)),
-            _headStat("Advance", fmtRs(advance), const Color(0xff0284c7)),
-            const SizedBox(width: 12),
-            ElevatedButton.icon(
-              onPressed: loading ? null : loadData,
-              icon: const Icon(Icons.refresh, size: 16),
-              label: Text(loading ? "Refreshing..." : "Refresh"),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xff7e22ce),
-                foregroundColor: Colors.white,
-              ),
-            ),
-          ],
-        ),
+        ],
       ),
+    );
+  }
+
+  Widget _travelHeadChip(String label, String value, IconData icon) {
+    return Container(
+      width: isMobile ? (MediaQuery.of(context).size.width - 54) / 2 : 170,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(.14),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Row(children: [
+        Icon(icon, color: Colors.white, size: 18),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(label.toUpperCase(),
+                style: const TextStyle(fontSize: 9, color: Color(0xffe9d5ff), fontWeight: FontWeight.w900)),
+            const SizedBox(height: 4),
+            Text(value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.w900)),
+          ]),
+        ),
+      ]),
     );
   }
 
@@ -471,118 +426,77 @@ class _TravelTabState extends State<TravelTab> {
     );
   }
 
+// REPLACE _filterBar()
   Widget _filterBar() {
-    final statuses =
-    filters["statuses"] is List ? filters["statuses"] as List : [];
+    final statuses = filters["statuses"] is List ? filters["statuses"] as List : [];
     final modes = filters["modes"] is List ? filters["modes"] as List : [];
-    final employees =
-    filters["employees"] is List ? filters["employees"] as List : [];
-
-    if (isMobile) {
-      return _card(
-        Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: _dateField(
-                      "From",
-                      dateFrom,
-                          (v) => dateFrom = v,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _dateField(
-                      "To",
-                      dateTo,
-                          (v) => dateTo = v,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              _dropdown(
-                "Status",
-                status,
-                statuses,
-                    (v) => setState(() => status = v),
-              ),
-              const SizedBox(height: 10),
-              _dropdown(
-                "Mode",
-                mode,
-                modes,
-                    (v) => setState(() => mode = v),
-              ),
-              const SizedBox(height: 10),
-              _employeeDropdown(employees),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: loadData,
-                      child: const Text("Apply"),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _resetFilters,
-                      child: const Text("Reset"),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      );
-    }
+    final employees = filters["employees"] is List ? filters["employees"] as List : [];
 
     return _card(
       Padding(
         padding: const EdgeInsets.all(14),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _dateField("From", dateFrom, (v) => dateFrom = v),
-            const SizedBox(width: 10),
-            _dateField("To", dateTo, (v) => dateTo = v),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _dropdown(
-                "Status",
-                status,
-                statuses,
-                    (v) => setState(() => status = v),
+            const Row(children: [
+              Icon(Icons.tune_rounded, color: Color(0xff7e22ce), size: 20),
+              SizedBox(width: 8),
+              Text("Filters", style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
+            ]),
+            const SizedBox(height: 14),
+            if (isMobile) ...[
+              Row(children: [
+                Expanded(child: _dateField("From", dateFrom, (v) => dateFrom = v)),
+                const SizedBox(width: 10),
+                Expanded(child: _dateField("To", dateTo, (v) => dateTo = v)),
+              ]),
+              const SizedBox(height: 10),
+              _dropdown("Status", status, statuses, (v) => setState(() => status = v)),
+              const SizedBox(height: 10),
+              _dropdown("Mode", mode, modes, (v) => setState(() => mode = v)),
+              const SizedBox(height: 10),
+              _employeeDropdown(employees),
+            ] else ...[
+              Row(children: [
+                _dateField("From", dateFrom, (v) => dateFrom = v),
+                const SizedBox(width: 10),
+                _dateField("To", dateTo, (v) => dateTo = v),
+                const SizedBox(width: 10),
+                Expanded(child: _dropdown("Status", status, statuses, (v) => setState(() => status = v))),
+                const SizedBox(width: 10),
+                Expanded(child: _dropdown("Mode", mode, modes, (v) => setState(() => mode = v))),
+                const SizedBox(width: 10),
+                Expanded(child: _employeeDropdown(employees)),
+              ]),
+            ],
+            const SizedBox(height: 14),
+            Row(children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: loadData,
+                  icon: const Icon(Icons.search_rounded, size: 18),
+                  label: const Text("Apply"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xff7e22ce),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _dropdown(
-                "Mode",
-                mode,
-                modes,
-                    (v) => setState(() => mode = v),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _resetFilters,
+                  icon: const Icon(Icons.restart_alt_rounded, size: 18),
+                  label: const Text("Reset"),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _employeeDropdown(employees),
-            ),
-            const SizedBox(width: 10),
-            ElevatedButton(
-              onPressed: loadData,
-              child: const Text("Apply"),
-            ),
-            const SizedBox(width: 8),
-            OutlinedButton(
-              onPressed: _resetFilters,
-              child: const Text("Reset"),
-            ),
+            ]),
           ],
         ),
       ),
@@ -767,69 +681,65 @@ class _TravelTabState extends State<TravelTab> {
     );
   }
 
+
   Widget _pendingPanel() {
     if (pendingRows.isEmpty) return const SizedBox();
-
-    if (isMobile) {
-      return _card(
-        Column(
-          children: [
-            _pendingHeader(),
-            ...pendingRows.map((r) {
-              return Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-                child: _mobileRequestCard(
-                  r,
-                  compact: true,
-                ),
-              );
-            }),
-            const SizedBox(height: 12),
-          ],
-        ),
-      );
-    }
 
     return _card(
       Column(
         children: [
           _pendingHeader(),
-          ...pendingRows.map((r) {
-            return ListTile(
-              title: Text(
-                "${r["employee"] ?? r["employee_name"] ?? "—"} — ${r["from_city"] ?? "—"} → ${r["to_city"] ?? "—"}",
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              subtitle: Text(
-                "${r["travel_date"] ?? "—"} · ${r["visit_type"] ?? r["mode"] ?? "—"} · ${r["purpose"] ?? ""}",
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _badge(
-                    "${r["mode"] ?? r["mode_of_travel"] ?? "Road"}",
-                    const Color(0xff64748b),
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              children: pendingRows.map((r) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: const BoxDecoration(
+                    border: Border(bottom: BorderSide(color: Color(0xfff1f5f9))),
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    fmtRs(r["advance_amount"]),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w900,
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const CircleAvatar(
+                      radius: 18,
+                      backgroundColor: Color(0xfffff7ed),
+                      child: Icon(Icons.pending_actions, color: Color(0xffd97706), size: 18),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  _badge(
-                    "Pending",
-                    const Color(0xffd97706),
-                  ),
-                ],
-              ),
-            );
-          }),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(
+                          "${r["employee"] ?? r["employee_name"] ?? "—"}",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          "${r["from_city"] ?? "—"} → ${r["to_city"] ?? "—"}",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 12, color: Color(0xff64748b)),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 7,
+                          runSpacing: 7,
+                          children: [
+                            _badge("${r["mode"] ?? r["mode_of_travel"] ?? "Road"}", const Color(0xff64748b)),
+                            _badge("${r["travel_date"] ?? "—"}", const Color(0xff7e22ce)),
+                            _badge("Pending", const Color(0xffd97706)),
+                          ],
+                        ),
+                      ]),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(fmtRs(r["advance_amount"]),
+                        style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xff0f172a))),
+                  ]),
+                );
+              }).toList(),
+            ),
+          ),
         ],
       ),
     );
@@ -972,184 +882,142 @@ class _TravelTabState extends State<TravelTab> {
           style: TextStyle(color: Color(0xff94a3b8)),
         ),
       )
-          : Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: list.map((m) {
-          final h = max == 0 ? 0.0 : (n(m["value"]) / max) * 175;
+          : LayoutBuilder(
+        builder: (context, constraints) {
+          final barMaxHeight = constraints.maxHeight - 28;
 
-          return Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Container(
-                  width: isMobile ? 18 : 22,
-                  height: h,
-                  decoration: BoxDecoration(
-                    color: const Color(0xff7e22ce).withOpacity(.75),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: list.map((m) {
+              final h = max == 0
+                  ? 0.0
+                  : ((n(m["value"]) / max) * barMaxHeight).clamp(0.0, barMaxHeight);
+
+              return Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Container(
+                      width: isMobile ? 18 : 22,
+                      height: h,
+                      decoration: BoxDecoration(
+                        color: const Color(0xff7e22ce).withOpacity(.75),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    SizedBox(
+                      height: 18,
+                      child: Text(
+                        "${m["month"]}",
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Color(0xff64748b),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  "${m["month"]}",
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: Color(0xff64748b),
-                  ),
-                ),
-              ],
-            ),
+              );
+            }).toList(),
           );
-        }).toList(),
+        },
       ),
     );
   }
-
   Widget _employeeComparisonTable() {
     final m = <String, Map<String, dynamic>>{};
 
     for (final r in rows) {
       final e = "${r["employee"] ?? r["employee_name"] ?? "Unknown"}";
-
-      m.putIfAbsent(e, () {
-        return {
-          "total": 0,
-          "approved": 0,
-          "pending": 0,
-          "rejected": 0,
-          "completed": 0,
-          "advance": 0.0,
-        };
+      m.putIfAbsent(e, () => {
+        "total": 0,
+        "approved": 0,
+        "pending": 0,
+        "rejected": 0,
+        "completed": 0,
+        "advance": 0.0,
       });
 
       m[e]!["total"]++;
-
       final st = "${r["status"] ?? ""}".toLowerCase();
 
       if (st == "approved") m[e]!["approved"]++;
       if (st == "pending" || st == "submitted") m[e]!["pending"]++;
       if (st == "rejected") m[e]!["rejected"]++;
       if (st == "completed") m[e]!["completed"]++;
-
       m[e]!["advance"] += n(r["advance_amount"]);
     }
 
-    final list = m.entries.toList();
-    list.sort(
-          (a, b) => n(b.value["total"]).compareTo(n(a.value["total"])),
-    );
+    final list = m.entries.toList()
+      ..sort((a, b) => n(b.value["total"]).compareTo(n(a.value["total"])));
 
-    if (isMobile) {
-      if (list.isEmpty) {
-        return _emptyCard("No employee summary available");
-      }
-
-      return _card(
-        Column(
-          children: [
-            _cardHead(
-              "Employee travel summary",
-              "Requests · approvals · advance disbursed",
-            ),
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                children: list.map((e) {
-                  final v = e.value;
-                  final approvalRate = pct(
-                    n(v["approved"]),
-                    n(v["total"]),
-                  );
-
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: _mobileInfoCard(
-                      title: e.key,
-                      subtitle: "Approval $approvalRate%",
-                      badge: _badge(
-                        "$approvalRate%",
-                        approvalRate >= 70
-                            ? const Color(0xff059669)
-                            : approvalRate >= 40
-                            ? const Color(0xffd97706)
-                            : const Color(0xffdc2626),
-                      ),
-                      rows: [
-                        _infoPair("Total", fmtN(v["total"])),
-                        _infoPair("Approved", fmtN(v["approved"])),
-                        _infoPair("Pending", fmtN(v["pending"])),
-                        _infoPair("Rejected", fmtN(v["rejected"])),
-                        _infoPair("Completed", fmtN(v["completed"])),
-                        _infoPair("Advance", fmtRs(v["advance"])),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
+    if (list.isEmpty) return _emptyCard("No employee summary available");
 
     return _card(
       Column(
         children: [
-          _cardHead(
-            "Employee travel summary",
-            "Requests · approvals · advance disbursed",
-          ),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              headingRowColor: WidgetStateProperty.all(
-                const Color(0xfff8fafc),
-              ),
-              columns: const [
-                DataColumn(label: Text("Employee")),
-                DataColumn(label: Text("Total")),
-                DataColumn(label: Text("Approved")),
-                DataColumn(label: Text("Pending")),
-                DataColumn(label: Text("Rejected")),
-                DataColumn(label: Text("Completed")),
-                DataColumn(label: Text("Advance ₹")),
-                DataColumn(label: Text("Approval %")),
-              ],
-              rows: list.map((e) {
+          _cardHead("Employee travel summary", "Requests · approvals · advance disbursed"),
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              children: list.map((e) {
                 final v = e.value;
-                final approvalRate = pct(
-                  n(v["approved"]),
-                  n(v["total"]),
-                );
+                final approvalRate = pct(n(v["approved"]), n(v["total"]));
+                final color = approvalRate >= 70
+                    ? const Color(0xff059669)
+                    : approvalRate >= 40
+                    ? const Color(0xffd97706)
+                    : const Color(0xffdc2626);
 
-                return DataRow(
-                  cells: [
-                    DataCell(
-                      Text(
-                        e.key,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w800,
+                return Container(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: const BoxDecoration(
+                    border: Border(bottom: BorderSide(color: Color(0xfff1f5f9))),
+                  ),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      CircleAvatar(
+                        backgroundColor: const Color(0xfff3e8ff),
+                        child: Text(
+                          e.key.isEmpty ? "?" : e.key.substring(0, 1).toUpperCase(),
+                          style: const TextStyle(color: Color(0xff7e22ce), fontWeight: FontWeight.w900),
                         ),
                       ),
-                    ),
-                    DataCell(Text(fmtN(v["total"]))),
-                    DataCell(Text(fmtN(v["approved"]))),
-                    DataCell(Text(fmtN(v["pending"]))),
-                    DataCell(Text(fmtN(v["rejected"]))),
-                    DataCell(Text(fmtN(v["completed"]))),
-                    DataCell(Text(fmtRs(v["advance"]))),
-                    DataCell(
-                      _badge(
-                        "$approvalRate%",
-                        approvalRate >= 70
-                            ? const Color(0xff059669)
-                            : approvalRate >= 40
-                            ? const Color(0xffd97706)
-                            : const Color(0xffdc2626),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          e.key,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
+                        ),
                       ),
+                      _badge("$approvalRate%", color),
+                    ]),
+                    const SizedBox(height: 12),
+                    LinearProgressIndicator(
+                      value: (approvalRate / 100).clamp(0, 1),
+                      minHeight: 7,
+                      backgroundColor: const Color(0xfff1f5f9),
+                      valueColor: AlwaysStoppedAnimation(color),
                     ),
-                  ],
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _plainMetric("Total", fmtN(v["total"])),
+                        _plainMetric("Approved", fmtN(v["approved"])),
+                        _plainMetric("Pending", fmtN(v["pending"])),
+                        _plainMetric("Rejected", fmtN(v["rejected"])),
+                        _plainMetric("Completed", fmtN(v["completed"])),
+                        _plainMetric("Advance", fmtRs(v["advance"])),
+                      ],
+                    ),
+                  ]),
                 );
               }).toList(),
             ),
@@ -1159,101 +1027,130 @@ class _TravelTabState extends State<TravelTab> {
     );
   }
 
-  Widget _allRequestsTable() {
-    if (isMobile) {
-      if (rows.isEmpty) {
-        return _emptyCard("No travel requests available");
-      }
+  // ADD helper inside _TravelTabState
+  Widget _plainMetric(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: const Color(0xfff8fafc),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xffe2e8f0)),
+      ),
+      child: RichText(
+        text: TextSpan(
+          children: [
+            TextSpan(
+              text: "$label: ",
+              style: const TextStyle(
+                fontSize: 10,
+                color: Color(0xff64748b),
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            TextSpan(
+              text: value,
+              style: const TextStyle(
+                fontSize: 11,
+                color: Color(0xff0f172a),
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-      return Column(
-        children: rows.map((r) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: _mobileRequestCard(r),
-          );
-        }).toList(),
-      );
+  Widget _allRequestsTable() {
+    if (rows.isEmpty) {
+      return _emptyCard("No travel requests available");
     }
 
     return _card(
-      SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: DataTable(
-          headingRowColor: WidgetStateProperty.all(
-            const Color(0xfff8fafc),
-          ),
-          columns: const [
-            DataColumn(label: Text("Req #")),
-            DataColumn(label: Text("Employee")),
-            DataColumn(label: Text("Purpose")),
-            DataColumn(label: Text("Type")),
-            DataColumn(label: Text("From")),
-            DataColumn(label: Text("To")),
-            DataColumn(label: Text("Travel")),
-            DataColumn(label: Text("Return")),
-            DataColumn(label: Text("Mode")),
-            DataColumn(label: Text("Status")),
-            DataColumn(label: Text("Adv?")),
-            DataColumn(label: Text("Advance ₹")),
-          ],
-          rows: rows.map((r) {
-            final adv = r["advance_required"] == true ||
-                "${r["advance_required"]}".toLowerCase() == "true" ||
-                "${r["advance_required"]}" == "1";
+      Column(
+        children: [
+          _cardHead("All travel requests", "Complete request list"),
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              children: rows.map((r) {
+                final adv = r["advance_required"] == true ||
+                    "${r["advance_required"]}".toLowerCase() == "true" ||
+                    "${r["advance_required"]}" == "1";
 
-            return DataRow(
-              cells: [
-                DataCell(Text("${r["request_number"] ?? "—"}")),
-                DataCell(
-                  Text(
-                    "${r["employee"] ?? r["employee_name"] ?? "—"}",
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                    ),
+                return Container(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: const BoxDecoration(
+                    border: Border(bottom: BorderSide(color: Color(0xfff1f5f9))),
                   ),
-                ),
-                DataCell(
-                  SizedBox(
-                    width: 190,
-                    child: Text(
-                      "${r["purpose"] ?? "—"}",
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        CircleAvatar(
+                          radius: 18,
+                          backgroundColor: const Color(0xfff3e8ff),
+                          child: Text(
+                            "${r["employee"] ?? r["employee_name"] ?? "?"}"
+                                .substring(0, 1)
+                                .toUpperCase(),
+                            style: const TextStyle(
+                              color: Color(0xff7e22ce),
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text(
+                              "${r["employee"] ?? r["employee_name"] ?? "—"}",
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              "${r["from_city"] ?? "—"} → ${r["to_city"] ?? "—"}",
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 12, color: Color(0xff64748b)),
+                            ),
+                          ]),
+                        ),
+                        const SizedBox(width: 8),
+                        _badge("${r["status"] ?? ""}", _statusColor("${r["status"] ?? ""}")),
+                      ]),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 7,
+                        runSpacing: 7,
+                        children: [
+                          _badge("${r["visit_type"] ?? ""}", const Color(0xff64748b)),
+                          _badge("${r["mode"] ?? r["mode_of_travel"] ?? "Road"}", const Color(0xff7e22ce)),
+                          _badge(adv ? "Advance YES" : "Advance NO",
+                              adv ? const Color(0xff059669) : const Color(0xff94a3b8)),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _plainMetric("Req #", "${r["request_number"] ?? "—"}"),
+                          _plainMetric("Purpose", "${r["purpose"] ?? "—"}"),
+                          _plainMetric("Travel", "${r["travel_date"] ?? "—"}"),
+                          _plainMetric("Return", "${r["return_date"] ?? "—"}"),
+                          _plainMetric("Advance", fmtRs(r["advance_amount"])),
+                        ],
+                      ),
+                    ],
                   ),
-                ),
-                DataCell(
-                  _badge(
-                    "${r["visit_type"] ?? ""}",
-                    const Color(0xff64748b),
-                  ),
-                ),
-                DataCell(Text("${r["from_city"] ?? "—"}")),
-                DataCell(Text("${r["to_city"] ?? "—"}")),
-                DataCell(Text("${r["travel_date"] ?? "—"}")),
-                DataCell(Text("${r["return_date"] ?? "—"}")),
-                DataCell(Text("${r["mode"] ?? "—"}")),
-                DataCell(
-                  _badge(
-                    "${r["status"] ?? ""}",
-                    _statusColor("${r["status"] ?? ""}"),
-                  ),
-                ),
-                DataCell(
-                  Text(
-                    adv ? "YES" : "NO",
-                    style: TextStyle(
-                      fontWeight: FontWeight.w900,
-                      color: adv
-                          ? const Color(0xff059669)
-                          : const Color(0xff94a3b8),
-                    ),
-                  ),
-                ),
-                DataCell(Text(fmtRs(r["advance_amount"]))),
-              ],
-            );
-          }).toList(),
-        ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
       ),
     );
   }

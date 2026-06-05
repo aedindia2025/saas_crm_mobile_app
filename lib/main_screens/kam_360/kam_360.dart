@@ -2,8 +2,10 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'package:ascent_crm/main_screens/kam_360/plan_your_day.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+
+import '../../api_helpers/api_urls.dart';
 
 class AppColors {
   static const Color primaryDark = Color(0xFF103050);
@@ -55,11 +57,10 @@ class _TableHead extends StatelessWidget {
 
 class _Kam360PageState extends State<Kam360Page>
     with SingleTickerProviderStateMixin {
+  static const String _baseUrl = 'http://103.110.236.187:3076';
   late TabController tabController;
-
-  final String baseUrl = "http://103.110.236.187:3076/api/v1";
   String? token;
-
+  String? tenantSlug;
 
   String advancedSection = "tree";
   int? expandedGroupId;
@@ -245,7 +246,7 @@ class _Kam360PageState extends State<Kam360Page>
 
   Map<String, String> get headers => {
     "Authorization": "Bearer $token",
-    "X-Tenant-Slug": "ascent",
+    "X-Tenant-Slug": tenantSlug ?? "",
     "Accept": "application/json",
     "Content-Type": "application/json",
   };
@@ -253,6 +254,7 @@ class _Kam360PageState extends State<Kam360Page>
   Future<void> loadAll() async {
     final prefs = await SharedPreferences.getInstance();
     token = prefs.getString("auth_token");
+    tenantSlug = prefs.getString("tenant_slug");
 
     if (token == null || token!.isEmpty) {
       setState(() {
@@ -281,56 +283,49 @@ class _Kam360PageState extends State<Kam360Page>
   }
 
   Future<dynamic> getApi(String path, {Map<String, String>? params}) async {
-    final uri = Uri.parse("$baseUrl$path").replace(queryParameters: params);
+    final uri = Uri.parse("$_baseUrl/api/v1$path").replace(queryParameters: params);
     final response = await http.get(uri, headers: headers);
 
-    debugPrint("GET => $uri");
-    debugPrint("STATUS => ${response.statusCode}");
-
+    final data = jsonDecode(response.body);
     if (response.statusCode >= 200 && response.statusCode < 300) {
-      if (response.body.trim().isEmpty) return {};
-      return jsonDecode(response.body);
+      return data ?? {};
     }
 
-    throw Exception(response.body);
+    print("data?['message']=== ${data?['message']}");
+
+    throw Exception(data?['message'] ?? "API GET Error");
   }
 
   Future<dynamic> postApi(String path, Map<String, dynamic> body) async {
+    final uri = Uri.parse("$_baseUrl/api/v1$path");
     final response = await http.post(
-      Uri.parse("$baseUrl$path"),
+      uri,
       headers: headers,
       body: jsonEncode(body),
     );
 
-    debugPrint("POST => $baseUrl$path");
-    debugPrint("BODY => ${jsonEncode(body)}");
-    debugPrint("STATUS => ${response.statusCode}");
-
+    final data = jsonDecode(response.body);
     if (response.statusCode >= 200 && response.statusCode < 300) {
-      if (response.body.trim().isEmpty) return {};
-      return jsonDecode(response.body);
+      return data ?? {};
     }
 
-    throw Exception(response.body);
+    throw Exception(data?['message'] ?? "API POST Error");
   }
 
   Future<dynamic> putApi(String path, Map<String, dynamic> body) async {
+    final uri = Uri.parse("$_baseUrl/api/v1$path");
     final response = await http.put(
-      Uri.parse("$baseUrl$path"),
+      uri,
       headers: headers,
       body: jsonEncode(body),
     );
 
-    debugPrint("PUT => $baseUrl$path");
-    debugPrint("BODY => ${jsonEncode(body)}");
-    debugPrint("STATUS => ${response.statusCode}");
-
+    final data = jsonDecode(response.body);
     if (response.statusCode >= 200 && response.statusCode < 300) {
-      if (response.body.trim().isEmpty) return {};
-      return jsonDecode(response.body);
+      return data ?? {};
     }
 
-    throw Exception(response.body);
+    throw Exception(data?['message'] ?? "API PUT Error");
   }
 
   Future<void> fetchTeamMembers() async {
@@ -899,8 +894,9 @@ class _Kam360PageState extends State<Kam360Page>
                         MaterialPageRoute(builder: (context) =>  PlanYourDayPage(
                       customers: customers,
                       teamMembers: teamMembers,
-                      baseUrl: baseUrl,
                       token: token!,
+                      baseUrl: _baseUrl,
+                      tenantSlug: tenantSlug ?? "",
                     ),));
                   },
                   icon: const Icon(Icons.add, size: 17),
@@ -1923,8 +1919,8 @@ class _Kam360PageState extends State<Kam360Page>
       onTap: onTap,
       borderRadius: BorderRadius.circular(22),
       child: Container(
-        height: 132,
-        padding: const EdgeInsets.all(16),
+        height: 138,
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [color.withOpacity(.90), color],
@@ -1943,29 +1939,39 @@ class _Kam360PageState extends State<Kam360Page>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: Colors.white, size: 22),
+            Icon(icon, color: Colors.white, size: 20),
             const Spacer(),
-            Text(
-              value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 27,
-                fontWeight: FontWeight.w900,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                value,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             ),
+            const SizedBox(height: 2),
             Text(
               title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: Colors.white.withOpacity(.78),
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: FontWeight.w800,
               ),
             ),
+            const SizedBox(height: 2),
             Text(
               sub,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 16,
+                fontSize: 14,
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -2271,72 +2277,76 @@ class _Kam360PageState extends State<Kam360Page>
       onTap: () => setState(() {
         expandedAdvancedMemberId = expandedAdvancedMemberId == uid ? null : uid;
       }),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: const BoxDecoration(
-          border: Border(top: BorderSide(color: Color(0xffEEF2F7))),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              flex: 3,
-              child: Row(
-                children: [
-                  _avatarBox(name),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            name,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w900,
-                              color: Color(0xff1E293B),
-                            ),
-                          ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Container(
+          width: 760,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: const BoxDecoration(
+            border: Border(top: BorderSide(color: Color(0xffEEF2F7))),
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 210,
+                child: Row(
+                  children: [
+                    _avatarBox(name),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xff1E293B),
                         ),
-                        if (isHead) ...[
-                          const SizedBox(width: 5),
-                          _miniBadge("HEAD", const Color(0xff4F46E5)),
-                        ],
-                      ],
+                      ),
                     ),
-                  ),
-                ],
+                    if (isHead) ...[
+                      const SizedBox(width: 5),
+                      Flexible(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: _miniBadge("HEAD", const Color(0xff4F46E5)),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
-            ),
-            Expanded(
-              flex: 2,
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: _miniBadge(roleLabel(m["role"]), _roleColor(m["role"])),
+              SizedBox(
+                width: 130,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: _miniBadge(roleLabel(m["role"]), _roleColor(m["role"])),
+                ),
               ),
-            ),
-            Expanded(
-              flex: 2,
-              child: _tableValue(
-                "${m["own_customers"] ?? m["customers"] ?? m["customer_count"] ?? 0} ↗",
-                const Color(0xff059669),
+              SizedBox(
+                width: 90,
+                child: _tableValue(
+                  "${m["own_customers"] ?? m["customers"] ?? m["customer_count"] ?? 0}",
+                  const Color(0xff059669),
+                ),
               ),
-            ),
-            Expanded(
-              flex: 2,
-              child: _tableValue(
-                "$done/$activities · ${activities == 0 ? 0 : ((done / activities) * 100).round()}%",
-                const Color(0xffEA580C),
+              SizedBox(
+                width: 120,
+                child: _tableValue(
+                  "$done/$activities · ${activities == 0 ? 0 : ((done / activities) * 100).round()}%",
+                  const Color(0xffEA580C),
+                ),
               ),
-            ),
-            Expanded(
-              flex: 2,
-              child: _tableValue("${m["lead_count"] ?? 0} ↗", const Color(0xff7C3AED)),
-            ),
-            Expanded(
-              flex: 2,
-              child: _tableValue("${m["tender_count"] ?? 0} ↗", const Color(0xffEA580C)),
-            ),
-          ],
+              SizedBox(
+                width: 90,
+                child: _tableValue("${m["lead_count"] ?? 0}", const Color(0xff7C3AED)),
+              ),
+              SizedBox(
+                width: 90,
+                child: _tableValue("${m["tender_count"] ?? 0}", const Color(0xffEA580C)),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -2352,74 +2362,247 @@ class _Kam360PageState extends State<Kam360Page>
           sectionTitle("Organization Chart", Icons.account_tree_rounded),
           const SizedBox(height: 6),
           const Text(
-            "Every group is shown as one branch. Members inside the same group stay at the same level.",
+            "Team head is shown at the top. Team members are shown under each head.",
             style: TextStyle(
               color: Color(0xff64748B),
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
+
           ...syntheticGroups.map((g) {
             final members = List<Map<String, dynamic>>.from(g["members"] ?? []);
-            return Container(
-              margin: const EdgeInsets.only(bottom: 14),
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0xffF8FAFC),
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: const Color(0xffE2E8F0)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    safeText(g["name"]),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 15,
-                      color: Color(0xff0F172A),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: members.map((m) {
-                      final name = safeText(m["full_name"] ?? m["user_name"]);
-                      return Container(
-                        width: 155,
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: const Color(0xffE2E8F0)),
-                        ),
-                        child: Column(
-                          children: [
-                            _avatarBox(name),
-                            const SizedBox(height: 8),
-                            Text(
-                              name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontWeight: FontWeight.w900),
-                            ),
-                            const SizedBox(height: 4),
-                            _miniBadge(roleLabel(m["role"]), _roleColor(m["role"])),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ],
-              ),
+
+            final heads = members.where((m) {
+              final role = safeText(m["role"], "").toLowerCase();
+              return role.contains("manager") ||
+                  role.contains("head") ||
+                  role.contains("lead");
+            }).toList();
+
+            final teamHead = heads.isNotEmpty ? heads.first : members.firstOrNull;
+
+            final teamMembers = members.where((m) {
+              final id = asInt(m["user_id"] ?? m["id"]);
+              final headId = asInt(teamHead?["user_id"] ?? teamHead?["id"]);
+              return id != headId;
+            }).toList();
+
+            return _teamTreeCard(
+              groupName: safeText(g["name"]),
+              head: teamHead,
+              members: teamMembers,
             );
           }),
         ],
       ),
     );
   }
+
+  Widget _teamTreeCard({
+    required String groupName,
+    required Map<String, dynamic>? head,
+    required List<Map<String, dynamic>> members,
+  }) {
+    if (head == null) return const SizedBox();
+
+    final headName = safeText(head["full_name"] ?? head["user_name"]);
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xffF8FAFC),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xffE2E8F0)),
+      ),
+      child: Column(
+        children: [
+          Text(
+            groupName,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+              color: Color(0xff0F172A),
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          _treePersonNode(
+            name: headName,
+            role: roleLabel(head["role"]),
+            isHead: true,
+          ),
+
+          if (members.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              width: 2,
+              height: 22,
+              color: const Color(0xff22C55E),
+            ),
+
+            ...members.map((m) {
+              final name = safeText(m["full_name"] ?? m["user_name"]);
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 34,
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 2,
+                          height: 36,
+                          color: const Color(0xff22C55E),
+                        ),
+                        Container(
+                          width: 24,
+                          height: 2,
+                          color: const Color(0xff22C55E),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _mobileTreeMemberNode(
+                        name: name,
+                        role: roleLabel(m["role"]),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _mobileTreeMemberNode({
+    required String name,
+    required String role,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xffE2E8F0)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: AppColors.primaryLight.withOpacity(.10),
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.primaryLight),
+            ),
+            child: const Icon(
+              Icons.person_rounded,
+              color: AppColors.primaryLight,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xff0F172A),
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  role,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xff64748B),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _treePersonNode({
+    required String name,
+    required String role,
+    required bool isHead,
+  }) {
+    final color = isHead ? const Color(0xff4F46E5) : AppColors.primaryLight;
+
+    return Column(
+      children: [
+        Container(
+          width: isHead ? 58 : 50,
+          height: isHead ? 58 : 50,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: color.withOpacity(.12),
+            border: Border.all(color: color, width: 2),
+          ),
+          child: Center(
+            child: Icon(
+              isHead ? Icons.workspace_premium_rounded : Icons.person_rounded,
+              color: color,
+              size: isHead ? 30 : 26,
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        SizedBox(
+          width: 120,
+          child: Text(
+            name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              color: Color(0xff0F172A),
+            ),
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          role,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 10,
+            color: color,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
+    );
+  }
+
+
 
   Widget _advancedComparisonView() {
     final rows = [...teamRows];
@@ -3451,7 +3634,7 @@ class _Kam360PageState extends State<Kam360Page>
               };
 
               try {
-                await putApi("/kam/activities/${activity["id"]}", body);
+                await putApi("${ApiUrls.baseUrl}/api/v1/kam/activities/${activity["id"]}", body);
                 if (!mounted) return;
                 Navigator.pop(context);
                 showSuccess("Activity saved");
@@ -3888,7 +4071,7 @@ class _Kam360PageState extends State<Kam360Page>
               setDialog(() => localSaving = true);
 
               try {
-                await postApi("/kam/targets", {
+                await postApi("${ApiUrls.baseUrl}/api/v1/kam/targets", {
                   "user_id": userId,
                   "period": year,
                   "calls_target": 0,
@@ -4725,6 +4908,7 @@ class _Kam360PageState extends State<Kam360Page>
 
   Widget _softInfoChip(String text, Color color, IconData icon) {
     return Container(
+      constraints: const BoxConstraints(maxWidth: 260),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
         color: color.withOpacity(.08),
@@ -4735,12 +4919,16 @@ class _Kam360PageState extends State<Kam360Page>
         children: [
           Icon(icon, size: 13, color: color),
           const SizedBox(width: 5),
-          Text(
-            text,
-            style: TextStyle(
-              color: color,
-              fontSize: 11.5,
-              fontWeight: FontWeight.w800,
+          Flexible(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: color,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ),
         ],
@@ -5182,3 +5370,55 @@ class _MiniMetric {
   _MiniMetric(this.label, this.value, this.sub, this.color);
 }
 
+class _TreeLinePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xff22C55E)
+      ..strokeWidth = 1.6
+      ..style = PaintingStyle.stroke;
+
+    final centerX = size.width / 2;
+
+    canvas.drawLine(
+      Offset(centerX, 0),
+      Offset(centerX, 18),
+      paint,
+    );
+
+    canvas.drawLine(
+      Offset(40, 18),
+      Offset(size.width - 40, 18),
+      paint,
+    );
+
+    canvas.drawLine(
+      const Offset(40, 18),
+      const Offset(40, 42),
+      paint,
+    );
+
+    canvas.drawLine(
+      Offset(size.width - 40, 18),
+      Offset(size.width - 40, 42),
+      paint,
+    );
+
+    final count = (size.width / 135).round().clamp(2, 20);
+    for (int i = 1; i < count - 1; i++) {
+      final x = 40 + ((size.width - 80) / (count - 1)) * i;
+      canvas.drawLine(
+        Offset(x, 18),
+        Offset(x, 42),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+extension FirstOrNullExtension<E> on List<E> {
+  E? get firstOrNull => isEmpty ? null : first;
+}

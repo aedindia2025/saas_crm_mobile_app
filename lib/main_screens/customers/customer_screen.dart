@@ -1,8 +1,7 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../api_helpers/api_method.dart';
 
 import 'create_customer.dart';
 
@@ -38,7 +37,7 @@ class Customer extends StatefulWidget {
 
 class _CustomerState extends State<Customer>  {
   static const String baseUrl = 'http://103.110.236.187:3076/api/v1';
-  static const String tenantSlug = 'ascent';
+  String tenantSlug = '';
 
   String intelligenceSubTab = 'overview';
   String product360SubTab = 'supplied';
@@ -84,6 +83,7 @@ class _CustomerState extends State<Customer>  {
   Future<void> getSharedPref() async {
     final prefs = await SharedPreferences.getInstance();
     token = prefs.getString('auth_token');
+    tenantSlug = prefs.getString('tenant_slug') ?? '';
     if (token == null) {
       setState(() => isLoading = false);
       showSnack('Token not found', Colors.red);
@@ -102,9 +102,9 @@ class _CustomerState extends State<Customer>  {
   Future<void> fetchCustomerBadge() async {
     if (token == null) return;
     try {
-      final response = await http.get(Uri.parse('$baseUrl/customers/badge'), headers: headers);
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+      final res = await ApiMethod.getRequest(url: '$baseUrl/customers/badge', headers: headers);
+      if (res['statusCode'] == 200) {
+        final data = res['data'];
         if (!mounted) return;
         setState(() => totalCustomers = int.tryParse(data['count'].toString()) ?? 0);
       }
@@ -144,11 +144,11 @@ class _CustomerState extends State<Customer>  {
       final uri = Uri.parse('$baseUrl/customers/')
           .replace(queryParameters: queryParams);
 
-      final response = await http.get(uri, headers: headers);
+      final res = await ApiMethod.getRequest(url: uri.toString(), headers: headers);
 
-      if (response.statusCode == 200) {
-        final List res = jsonDecode(response.body);
-        final newItems = res.map((e) => Map<String, dynamic>.from(e)).toList();
+      if (res['statusCode'] == 200) {
+        final List data = res['data'];
+        final newItems = data.map((e) => Map<String, dynamic>.from(e)).toList();
 
         if (!mounted) return;
 
@@ -172,7 +172,7 @@ class _CustomerState extends State<Customer>  {
           isLoadingMore = false;
         });
 
-        showSnack(response.body, Colors.red);
+        showSnack(res['data']?.toString() ?? 'Error', Colors.red);
       }
     } catch (e) {
       if (!mounted) return;
@@ -197,21 +197,20 @@ class _CustomerState extends State<Customer>  {
     });
 
     try {
-      final uri = Uri.parse('$baseUrl/customers/${customer['id']}/360');
-      final response = await http.get(uri, headers: headers);
+      final res = await ApiMethod.getRequest(url: '$baseUrl/customers/${customer['id']}/360', headers: headers);
 
-      if (response.statusCode == 200) {
+      if (res['statusCode'] == 200) {
         if (!mounted) return;
 
         setState(() {
-          customer360Data = Map<String, dynamic>.from(jsonDecode(response.body));
+          customer360Data = Map<String, dynamic>.from(res['data']);
           is360Loading = false;
         });
       } else {
         if (!mounted) return;
 
         setState(() => is360Loading = false);
-        showSnack(response.body, Colors.red);
+        showSnack(res['data']?.toString() ?? 'Error', Colors.red);
       }
     } catch (e) {
       if (!mounted) return;
@@ -231,14 +230,13 @@ class _CustomerState extends State<Customer>  {
     if (token == null) return;
     try {
       setState(() => isLoading = true);
-      final uri = Uri.parse('$baseUrl/customers/$customerId');
-      final response = await http.delete(uri, headers: headers);
-      if (response.statusCode == 200 || response.statusCode == 201) {
+      final res = await ApiMethod.deleteRequest(url: '$baseUrl/customers/$customerId', headers: headers);
+      if (res['statusCode'] == 200 || res['statusCode'] == 201) {
         showSnack('Customer deleted successfully', Colors.green);
         await refreshAll();
       } else {
         setState(() => isLoading = false);
-        showSnack(response.body, Colors.red);
+        showSnack(res['data']?.toString() ?? 'Error', Colors.red);
       }
     } catch (e) {
       setState(() => isLoading = false);
@@ -251,16 +249,16 @@ class _CustomerState extends State<Customer>  {
     try {
       final uri = Uri.parse('$baseUrl/customers/$customerId/status')
           .replace(queryParameters: {'status': selectedStatus});
-      final response = await http.patch(
-        uri,
+      final res = await ApiMethod.patchRequest(
+        url: uri.toString(),
         headers: headers,
-        body: jsonEncode({'account_status': selectedStatus}),
+        body: {'account_status': selectedStatus},
       );
-      if (response.statusCode == 200 || response.statusCode == 201) {
+      if (res['statusCode'] == 200 || res['statusCode'] == 201) {
         showSnack('Status updated successfully', Colors.green);
         await refreshAll();
       } else {
-        showSnack(response.body, Colors.red);
+        showSnack(res['data']?.toString() ?? 'Error', Colors.red);
       }
     } catch (e) {
       showSnack(e.toString(), Colors.red);

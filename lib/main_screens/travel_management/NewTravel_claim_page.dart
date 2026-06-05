@@ -2,8 +2,9 @@ import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../api_helpers/api_method.dart';
+import 'package:http/http.dart' as http;
 
 class ExpenseRow {
   final expenseDateController = TextEditingController();
@@ -73,12 +74,14 @@ class ExpenseRow {
 class NewTravelClaimPage extends StatefulWidget {
   final String baseUrl;
   final String token;
+  final String tenantSlug;
   final List<Map<String, dynamic>> requests;
 
   const NewTravelClaimPage({
     super.key,
     required this.baseUrl,
     required this.token,
+    required this.tenantSlug,
     required this.requests,
   });
 
@@ -119,7 +122,7 @@ class _NewTravelClaimPageState extends State<NewTravelClaimPage>
 
   Map<String, String> get headers => {
     'Authorization': 'Bearer ${widget.token}',
-    'X-Tenant-Slug': 'ascent',
+    'X-Tenant-Slug': widget.tenantSlug,
     'Accept': 'application/json',
     'Content-Type': 'application/json',
   };
@@ -381,20 +384,20 @@ class _NewTravelClaimPageState extends State<NewTravelClaimPage>
         }).toList(),
       };
 
-      final response = await http.post(
-        Uri.parse('${widget.baseUrl}/travel/tada'),
+      final response = await ApiMethod.postRequest(
+        url: '${widget.baseUrl}/travel/tada',
         headers: headers,
-        body: jsonEncode(body),
+        body: body,
       );
 
-      if (response.statusCode != 200 && response.statusCode != 201) {
+      if (response['statusCode'] != 200 && response['statusCode'] != 201) {
         await _clearDraft();
         setState(() => saving = false);
-        showError(response.body);
+        showError(response['data']?.toString() ?? 'Error saving claim');
         return;
       }
 
-      final created = jsonDecode(response.body);
+      final created = response['data'];
       final claimId = created['id'];
       final lineItems = created['line_items'] ?? [];
 
@@ -433,26 +436,22 @@ class _NewTravelClaimPageState extends State<NewTravelClaimPage>
     final file = row.proofFile;
     if (file == null || file.path == null) return;
 
-    final request = http.MultipartRequest(
-      'POST',
-      Uri.parse(
-        '${widget.baseUrl}/travel/tada/$claimId/line-items/$lineItemId/attachments?doc_type=${Uri.encodeComponent(row.docType)}',
-      ),
+    final response = await ApiMethod.multipartRequest(
+      method: 'POST',
+      url: '${widget.baseUrl}/travel/tada/$claimId/line-items/$lineItemId/attachments?doc_type=${Uri.encodeComponent(row.docType)}',
+      headers: {
+        'Authorization': 'Bearer ${widget.token}',
+        'X-Tenant-Slug': widget.tenantSlug,
+        'Accept': 'application/json',
+      },
+      fields: {},
+      files: [
+        await http.MultipartFile.fromPath('file', file.path!, filename: file.name),
+      ],
     );
 
-    request.headers.addAll({
-      'Authorization': 'Bearer ${widget.token}',
-      'X-Tenant-Slug': 'ascent',
-      'Accept': 'application/json',
-    });
-
-    request.files.add(await http.MultipartFile.fromPath('file', file.path!, filename: file.name));
-
-    final streamed = await request.send();
-    final response = await http.Response.fromStream(streamed);
-
-    if (response.statusCode != 200 && response.statusCode != 201) {
-      throw Exception(response.body);
+    if (response['statusCode'] != 200 && response['statusCode'] != 201) {
+      throw Exception(response['data']?.toString() ?? 'Error uploading proof');
     }
   }
 

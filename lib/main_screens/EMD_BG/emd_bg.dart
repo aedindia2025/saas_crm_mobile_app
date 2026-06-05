@@ -25,7 +25,8 @@ class AppColors {
 }
 
 class EmdBg extends StatefulWidget {
-  const EmdBg({super.key});
+  final String tenantSlug;
+  const EmdBg({super.key, required this.tenantSlug});
 
   @override
   State<EmdBg> createState() => _EmdBgState();
@@ -90,7 +91,7 @@ class _EmdBgState extends State<EmdBg> {
         Uri.parse("http://103.110.236.187:3076/api/v1/emdbg"),
         headers: {
           'Authorization': 'Bearer $token',
-          'X-Tenant-Slug': 'ascent',
+          'X-Tenant-Slug': widget.tenantSlug,
           'Accept': 'application/json',
           'Content-Type': 'application/json',
         },

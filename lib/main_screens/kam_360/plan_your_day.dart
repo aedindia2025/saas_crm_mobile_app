@@ -5,15 +5,17 @@ import 'package:http/http.dart' as http;
 class PlanYourDayPage extends StatefulWidget {
   final List<Map<String, dynamic>> customers;
   final List<Map<String, dynamic>> teamMembers;
-  final String baseUrl;
   final String token;
+  final String baseUrl;
+  final String tenantSlug;
 
   const PlanYourDayPage({
     super.key,
     required this.customers,
     required this.teamMembers,
-    required this.baseUrl,
     required this.token,
+    required this.baseUrl,
+    required this.tenantSlug,
   });
 
   @override
@@ -55,7 +57,7 @@ class _PlanYourDayPageState extends State<PlanYourDayPage> {
 
   Map<String, String> get headers => {
     'Authorization': 'Bearer ${widget.token}',
-    'X-Tenant-Slug': 'ascent',
+    'X-Tenant-Slug': widget.tenantSlug,
     'Accept': 'application/json',
     'Content-Type': 'application/json',
   };
@@ -127,15 +129,18 @@ class _PlanYourDayPageState extends State<PlanYourDayPage> {
         };
       }).toList();
 
+      final uri = Uri.parse("${widget.baseUrl}/api/v1/kam/activities/bulk");
       final response = await http.post(
-        Uri.parse("${widget.baseUrl}/kam/activities/bulk"),
+        uri,
         headers: headers,
         body: jsonEncode(body),
       );
 
+      final data = jsonDecode(response.body);
+
       debugPrint("PLAN DAY BODY => ${jsonEncode(body)}");
       debugPrint("PLAN DAY STATUS => ${response.statusCode}");
-      debugPrint("PLAN DAY RESPONSE => ${response.body}");
+      debugPrint("PLAN DAY RESPONSE => $data");
 
       setState(() => isSaving = false);
 
@@ -148,7 +153,7 @@ class _PlanYourDayPageState extends State<PlanYourDayPage> {
         );
         Navigator.pop(context, true);
       } else {
-        showError(response.body);
+        showError(data?['message'] ?? "Unknown Error");
       }
     } catch (e) {
       setState(() => isSaving = false);

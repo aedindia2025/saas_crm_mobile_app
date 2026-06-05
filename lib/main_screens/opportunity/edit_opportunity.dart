@@ -1,8 +1,9 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../api_helpers/api_method.dart';
 
 class AppColors {
   static const Color primaryDark = Color(0xFF103050);
@@ -27,10 +28,12 @@ class AppColors {
 
 class EditOpportunity extends StatefulWidget {
   final Map<String, dynamic> opportunityData;
+  final String tenantSlug;
 
   const EditOpportunity({
     super.key,
     required this.opportunityData,
+    required this.tenantSlug,
   });
 
   @override
@@ -74,7 +77,7 @@ class _EditOpportunityState extends State<EditOpportunity> {
 
   Map<String, String> get headers => {
     'Authorization': 'Bearer $token',
-    'X-Tenant-Slug': 'ascent',
+    'X-Tenant-Slug': widget.tenantSlug,
     'Accept': 'application/json',
     'Content-Type': 'application/json',
   };
@@ -96,10 +99,10 @@ class _EditOpportunityState extends State<EditOpportunity> {
   }
 
   Future<List> getApiList(String url) async {
-    final response = await http.get(Uri.parse(url), headers: headers);
+    final response = await ApiMethod.getRequest(url: url, headers: headers);
 
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+    if (response['statusCode'] == 200) {
+      return response['data'] ?? [];
     }
 
     return [];
@@ -258,15 +261,15 @@ class _EditOpportunityState extends State<EditOpportunity> {
       final url =
           "http://103.110.236.187:3076/api/v1/leads/${widget.opportunityData['id']}";
 
-      final response = await http.put(
-        Uri.parse(url),
+      final response = await ApiMethod.putRequest(
+        url: url,
         headers: headers,
-        body: jsonEncode(body),
+        body: body,
       );
 
       if (mounted) setState(() => isLoading = false);
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
+      if (response['statusCode'] == 200 || response['statusCode'] == 201) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -278,7 +281,7 @@ class _EditOpportunityState extends State<EditOpportunity> {
 
         Navigator.pop(context, true);
       } else {
-        showError(response.body);
+        showError(response['data']?.toString() ?? "Update failed");
       }
     } catch (e) {
       if (mounted) setState(() => isLoading = false);
@@ -870,14 +873,14 @@ class _EditOpportunityState extends State<EditOpportunity> {
     }
 
     try {
-      final response = await http.post(
-        Uri.parse("http://103.110.236.187:3076/api/v1/masters/oems"),
+      final response = await ApiMethod.postRequest(
+        url: "http://103.110.236.187:3076/api/v1/masters/oems",
         headers: headers,
-        body: jsonEncode({"name": name}),
+        body: {"name": name},
       );
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = jsonDecode(response.body);
+      if (response['statusCode'] == 200 || response['statusCode'] == 201) {
+        final data = response['data'];
 
         final newOem = {
           "id": data["id"],
@@ -899,7 +902,7 @@ class _EditOpportunityState extends State<EditOpportunity> {
           ),
         );
       } else {
-        showError(response.body);
+        showError(response['data']?.toString() ?? "Failed to add OEM");
       }
     } catch (e) {
       showError(e.toString());

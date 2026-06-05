@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 
 class LeadsTab extends StatefulWidget {
@@ -18,6 +19,7 @@ class _LeadsTabState extends State<LeadsTab> {
 
   bool loading = true;
   Map<String, dynamic>? data;
+  String tenantSlug = "";
 
   String? dateFrom;
   String? dateTo;
@@ -30,6 +32,14 @@ class _LeadsTabState extends State<LeadsTab> {
   @override
   void initState() {
     super.initState();
+    _initAndLoad();
+  }
+
+  Future<void> _initAndLoad() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      tenantSlug = prefs.getString('tenant_slug') ?? '';
+    });
     loadData();
   }
 
@@ -75,7 +85,7 @@ class _LeadsTabState extends State<LeadsTab> {
         .replace(queryParameters: queryParams);
 
     final res = await http.get(uri, headers: {
-      'X-Tenant-Slug': 'ascent',
+      'X-Tenant-Slug': tenantSlug,
       "Authorization": "Bearer ${widget.token}",
       "Accept": "application/json",
     });
@@ -146,6 +156,79 @@ class _LeadsTabState extends State<LeadsTab> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _allLeadsTable() {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _section("08", "All Leads"),
+      const SizedBox(height: 10),
+      _card(
+        rows.isEmpty
+            ? const Padding(padding: EdgeInsets.all(24), child: Text("No leads found"))
+            : Column(children: rows.map((r) => _leadRowCard(r)).toList()),
+      ),
+    ]);
+  }
+
+  Widget _leadRowCard(Map<String, dynamic> r) {
+    final follow = "${r["follow_up"] ?? ""}";
+    final followDate = DateTime.tryParse(follow);
+    final overdue = followDate != null &&
+        followDate.isBefore(DateTime.now()) &&
+        !["Converted", "Lost"].contains("${r["status"] ?? ""}");
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: Color(0xfff1f5f9))),
+      ),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          color: const Color(0xffe0f2fe),
+          borderRadius: BorderRadius.circular(13),
+        ),
+        child: const Icon(Icons.track_changes, color: Color(0xff0284c7), size: 20),
+      ),
+      const SizedBox(width: 12),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(
+            child: Text(
+              "${r["title"] ?? "—"}",
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xff0f172a)),
+            ),
+          ),
+          _badge("${r["status"] ?? ""}", const Color(0xff64748b)),
+        ]),
+        const SizedBox(height: 5),
+        Text(
+          "${r["customer"] ?? "—"} · Ref: ${r["ref"] ?? "—"}",
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 11, color: Color(0xff64748b), fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 10),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          _inlineValue("Stage", stageLabel("${r["priority"] ?? ""}"), stageColor("${r["priority"] ?? ""}")),
+          _inlineValue("Est", fmtRs(r["est_value"]), const Color(0xff7c3aed)),
+          _inlineValue("Group", "${r["group"] ?? "—"}", const Color(0xff059669)),
+          _inlineValue("Assignee", "${r["assigned_to"] ?? "—"}", const Color(0xff0284c7)),
+          _inlineValue("Follow-up", follow.isEmpty ? "—" : follow, overdue ? const Color(0xffdc2626) : const Color(0xff64748b)),
+          _inlineValue("Created", "${r["created_at"] ?? "—"}", const Color(0xff64748b)),
+        ]),
+      ]
+      ),
+      )]
+
+      ),
+
     );
   }
 
@@ -255,72 +338,82 @@ class _LeadsTabState extends State<LeadsTab> {
     return _card(
       Padding(
         padding: const EdgeInsets.all(14),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Expanded(child: _dateField("From", dateFrom, (v) => dateFrom = v)),
-                const SizedBox(width: 10),
-                Expanded(child: _dateField("To", dateTo, (v) => dateTo = v)),
-              ],
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Row(children: [
+            Icon(Icons.filter_alt_outlined, size: 15, color: Color(0xff0284c7)),
+            SizedBox(width: 8),
+            Text("FILTERS", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.4)),
+          ]),
+          const SizedBox(height: 14),
+
+          Row(children: [
+            Expanded(child: _dateField("FROM DATE", dateFrom, (v) => setState(() => dateFrom = v))),
+            const SizedBox(width: 10),
+            Expanded(child: _dateField("TO DATE", dateTo, (v) => setState(() => dateTo = v))),
+          ]),
+          const SizedBox(height: 10),
+
+          Row(children: [
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                value: assignedTo,
+                isExpanded: true,
+                decoration: _input("OWNER"),
+                items: owners.map((o) {
+                  final id = "${o["id"]}";
+                  final name = "${o["name"] ?? id}";
+                  return DropdownMenuItem(value: id, child: Text(name, overflow: TextOverflow.ellipsis));
+                }).toList(),
+                onChanged: (v) => setState(() => assignedTo = v),
+              ),
             ),
-            const SizedBox(height: 10),
-            DropdownButtonFormField<String>(
-              value: assignedTo,
-              isExpanded: true,
-              decoration: _input("Owner"),
-              items: owners.map((o) {
-                final id = "${o["id"]}";
-                final name = "${o["name"] ?? id}";
-                return DropdownMenuItem(value: id, child: Text(name, overflow: TextOverflow.ellipsis));
-              }).toList(),
-              onChanged: (v) => setState(() => assignedTo = v),
+            const SizedBox(width: 10),
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                value: status,
+                isExpanded: true,
+                decoration: _input("STATUS"),
+                items: statuses.map((s) {
+                  return DropdownMenuItem(value: "$s", child: Text("$s", overflow: TextOverflow.ellipsis));
+                }).toList(),
+                onChanged: (v) => setState(() => status = v),
+              ),
             ),
-            const SizedBox(height: 10),
-            DropdownButtonFormField<String>(
-              value: status,
-              isExpanded: true,
-              decoration: _input("Status"),
-              items: statuses.map((s) {
-                return DropdownMenuItem(value: "$s", child: Text("$s", overflow: TextOverflow.ellipsis));
-              }).toList(),
-              onChanged: (v) => setState(() => status = v),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: loadData,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xff0284c7),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                    ),
-                    child: const Text("Apply"),
-                  ),
+          ]),
+
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(
+              child: ElevatedButton(
+                onPressed: loadData,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xff0284c7),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () {
-                      setState(() {
-                        dateFrom = null;
-                        dateTo = null;
-                        assignedTo = null;
-                        status = null;
-                        customerId = null;
-                      });
-                      loadData();
-                    },
-                    style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 13)),
-                    child: const Text("Reset"),
-                  ),
-                ),
-              ],
+                child: const Text("Apply", style: TextStyle(fontWeight: FontWeight.w800)),
+              ),
             ),
-          ],
-        ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () {
+                  setState(() {
+                    dateFrom = null;
+                    dateTo = null;
+                    assignedTo = null;
+                    status = null;
+                    customerId = null;
+                  });
+                  loadData();
+                },
+                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 13)),
+                child: const Text("Reset"),
+              ),
+            ),
+          ]),
+        ]),
       ),
     );
   }
@@ -353,69 +446,51 @@ class _LeadsTabState extends State<LeadsTab> {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       _section("02", "Opportunities", "Sales Qualified / Opportunity Developing / Proposal stage"),
       const SizedBox(height: 10),
-      _card(Column(
-        children: [
-          _cardHead("Active Opportunities", "${top.length} opportunities · ${fmtRs(totalValue)} pipeline"),
-          if (top.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(28),
-              child: Text("No active opportunities in pipeline"),
-            )
-          else
-            GridView.count(
-              crossAxisCount: 3,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(14),
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 2.5,
-              children: top.map((r) {
-                return Column(
-                  children: top.map((r) {
-                    return Container(
-                      margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: const Color(0xfff8fafc),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: const Color(0xffe0f2fe)),
-                      ),
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            backgroundColor: const Color(0xffe0f2fe),
-                            child: Icon(Icons.trending_up, color: const Color(0xff0284c7), size: 18),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Text("${r["status"] ?? ""}",
-                                  style: const TextStyle(color: Color(0xff0284c7), fontSize: 10, fontWeight: FontWeight.w900)),
-                              const SizedBox(height: 4),
-                              Text("${r["title"] ?? r["name"] ?? "—"}",
-                                  maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800)),
-                              Text("${r["customer"] ?? "—"}",
-                                  maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, color: Color(0xff64748b))),
-                            ]),
-                          ),
-                          const SizedBox(width: 8),
-                          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                            Text(fmtRs(r["est_value"]),
-                                style: const TextStyle(color: Color(0xff0284c7), fontWeight: FontWeight.w900)),
-                            const SizedBox(height: 5),
-                            _badge(stageLabel("${r["priority"] ?? ""}"), stageColor("${r["priority"] ?? ""}")),
-                          ]),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                );
-              }).toList(),
-            )
-        ],
-      )),
+      _card(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _cardHead("Active Opportunities", "${top.length} opportunities · ${fmtRs(totalValue)} pipeline"),
+        if (top.isEmpty)
+          const Padding(padding: EdgeInsets.all(28), child: Text("No active opportunities in pipeline"))
+        else
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              children: top.map((r) => _opportunityRow(r)).toList(),
+            ),
+          ),
+      ])),
     ]);
+  }
+
+  Widget _opportunityRow(Map<String, dynamic> r) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: const Color(0xfff0f9ff),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xffbae6fd)),
+      ),
+      child: Row(children: [
+        const CircleAvatar(
+          radius: 18,
+          backgroundColor: Color(0xffe0f2fe),
+          child: Icon(Icons.trending_up, color: Color(0xff0284c7), size: 18),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text("${r["status"] ?? ""}", style: const TextStyle(color: Color(0xff0284c7), fontSize: 10, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 4),
+          Text("${r["title"] ?? r["name"] ?? "—"}", maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900)),
+          Text("${r["customer"] ?? "—"}", maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, color: Color(0xff64748b))),
+        ])),
+        const SizedBox(width: 8),
+        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Text(fmtRs(r["est_value"]), style: const TextStyle(color: Color(0xff0284c7), fontWeight: FontWeight.w900)),
+          const SizedBox(height: 5),
+          _badge(stageLabel("${r["priority"] ?? ""}"), stageColor("${r["priority"] ?? ""}")),
+        ]),
+      ]),
+    );
   }
 
   Widget _overduePanel() {
@@ -429,18 +504,29 @@ class _LeadsTabState extends State<LeadsTab> {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       _section("03", "Overdue Follow-ups", "${overdue.length} leads need immediate action"),
       const SizedBox(height: 10),
-      _card(Column(children: [
+      _card(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         _cardHead("Overdue Follow-ups", "${overdue.length} pending"),
-        ...overdue.map((r) {
-          final f = DateTime.tryParse("${r["follow_up"]}");
-          final days = f == null ? 0 : today.difference(f).inDays;
-          return ListTile(
-            leading: const Icon(Icons.warning_amber_rounded, color: Color(0xffdc2626)),
-            title: Text("${r["title"] ?? r["name"] ?? "—"}", maxLines: 1, overflow: TextOverflow.ellipsis),
-            subtitle: Text("${r["customer"] ?? "—"} · ${r["assigned_to"] ?? "—"}"),
-            trailing: _badge("${days}d overdue", const Color(0xffdc2626)),
-          );
-        }),
+        if (overdue.isEmpty)
+          const Padding(padding: EdgeInsets.all(24), child: Text("All follow-ups are current"))
+        else
+          Column(children: overdue.map((r) {
+            final f = DateTime.tryParse("${r["follow_up"]}");
+            final days = f == null ? 0 : today.difference(f).inDays;
+            return Container(
+              padding: const EdgeInsets.all(14),
+              decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xffffe4e6)))),
+              child: Row(children: [
+                const Icon(Icons.warning_amber_rounded, color: Color(0xffdc2626)),
+                const SizedBox(width: 12),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text("${r["title"] ?? r["name"] ?? "—"}", maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 4),
+                  Text("${r["customer"] ?? "—"} · ${r["assigned_to"] ?? "—"}", style: const TextStyle(fontSize: 11, color: Color(0xff64748b))),
+                ])),
+                _badge("${days}d overdue", const Color(0xffdc2626)),
+              ]),
+            );
+          }).toList()),
       ])),
     ]);
   }
@@ -559,9 +645,26 @@ class _LeadsTabState extends State<LeadsTab> {
   }
 
   Widget _sourceBars(List<Map<String, dynamic>> items) {
-    final max = items.isEmpty ? 1 : items.map((e) => n(e["value"])).reduce((a, b) => a > b ? a : b);
-    return _chartBox("Lead Source", "Leads by acquisition channel",
-        Column(children: items.take(10).map((e) => _progressRow("${e["name"]}", n(e["value"]), max, const Color(0xff8b5cf6))).toList()));
+    final max = items.isEmpty
+        ? 1
+        : items.map((e) => n(e["value"])).reduce((a, b) => a > b ? a : b);
+
+    return _chartBox(
+      "Lead Source",
+      "Leads by acquisition channel",
+      ListView(
+        padding: EdgeInsets.zero,
+        children: items
+            .take(10)
+            .map((e) => _progressRow(
+          "${e["name"]}",
+          n(e["value"]),
+          max,
+          const Color(0xff8b5cf6),
+        ))
+            .toList(),
+      ),
+    );
   }
 
   Widget _comparisonTable() {
@@ -642,28 +745,15 @@ class _LeadsTabState extends State<LeadsTab> {
                 const SizedBox(height: 4),
                 Text("Grouped comparison", style: const TextStyle(fontSize: 11, color: Color(0xff64748b))),
                 const SizedBox(height: 10),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: options.entries.map((e) {
-                      final selected = compareBy == e.key;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 6),
-                        child: ChoiceChip(
-                          selected: selected,
-                          label: Text(e.value),
-                          onSelected: (_) => setState(() => compareBy = e.key),
-                          selectedColor: const Color(0xff0284c7),
-                          labelStyle: TextStyle(
-                            color: selected ? Colors.white : const Color(0xff475569),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      );
+                if (list.isEmpty)
+                  const Padding(padding: EdgeInsets.all(24), child: Text("No comparison data"))
+                else
+                  Column(
+                    children: list.take(25).map((e) {
+                      final v = e.value;
+                      return _leadComparisonRow(e.key, v);
                     }).toList(),
-                  ),
-                ),
+                  )
               ]),
             ),
 
@@ -702,6 +792,97 @@ class _LeadsTabState extends State<LeadsTab> {
             )
           ])),
     ]);
+  }
+
+
+  Widget _leadComparisonRow(String title, Map<String, dynamic> v) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: Color(0xfff1f5f9))),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: const Color(0xffe0f2fe),
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: const Icon(
+              Icons.compare_arrows,
+              color: Color(0xff0284c7),
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xff0f172a),
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  "${fmtN(v["total"])} leads · ${fmtN(v["converted"])} converted · ${fmtN(v["overdue"])} overdue",
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xff64748b),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _inlineValue("Sales Qualified", fmtN(v["high"]), const Color(0xff10b981)),
+                    _inlineValue("Opportunity Developing", fmtN(v["medium"]), const Color(0xfff59e0b)),
+                    _inlineValue("Prospect Identified", fmtN(v["low"]), const Color(0xff0ea5e9)),
+                    _inlineValue("Pipeline", fmtRs(v["value"]), const Color(0xff7c3aed)),
+                    _inlineValue("Lost", fmtN(v["lost"]), const Color(0xffdc2626)),
+                    _inlineValue("Win Rate", "${pct(n(v["converted"]), n(v["total"]))}%", const Color(0xff059669)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _inlineValue(String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(.08),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: RichText(
+        text: TextSpan(children: [
+          TextSpan(
+            text: "$label: ",
+            style: const TextStyle(fontSize: 10, color: Color(0xff64748b), fontWeight: FontWeight.w700),
+          ),
+          TextSpan(
+            text: value,
+            style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w900),
+          ),
+        ]),
+      ),
+    );
   }
 
   Widget _topLeadsSection() {
@@ -763,45 +944,6 @@ class _LeadsTabState extends State<LeadsTab> {
     ]));
   }
 
-  Widget _allLeadsTable() {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      _section("08", "All Leads"),
-      const SizedBox(height: 10),
-      _card(SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: DataTable(
-          headingRowColor: MaterialStateProperty.all(const Color(0xfff8fafc)),
-          columns: const [
-            DataColumn(label: Text("Ref")),
-            DataColumn(label: Text("Title")),
-            DataColumn(label: Text("Customer")),
-            DataColumn(label: Text("Status")),
-            DataColumn(label: Text("Stage")),
-            DataColumn(label: Text("Group")),
-            DataColumn(label: Text("Est ₹")),
-            DataColumn(label: Text("Follow-up")),
-            DataColumn(label: Text("Assignee")),
-            DataColumn(label: Text("Created")),
-          ],
-          rows: rows.map((r) {
-            return DataRow(cells: [
-              DataCell(Text("${r["ref"] ?? "—"}")),
-              DataCell(SizedBox(width: 220, child: Text("${r["title"] ?? "—"}", overflow: TextOverflow.ellipsis))),
-              DataCell(Text("${r["customer"] ?? "—"}")),
-              DataCell(_badge("${r["status"] ?? ""}", const Color(0xff64748b))),
-              DataCell(_badge(stageLabel("${r["priority"] ?? ""}"), stageColor("${r["priority"] ?? ""}"))),
-              DataCell(Text("${r["group"] ?? ""}")),
-              DataCell(Text(fmtRs(r["est_value"]))),
-              DataCell(Text("${r["follow_up"] ?? "—"}")),
-              DataCell(Text("${r["assigned_to"] ?? "—"}")),
-              DataCell(Text("${r["created_at"] ?? "—"}")),
-            ]);
-          }).toList(),
-        ),
-      )),
-    ]);
-  }
-
   Widget _progressRow(String label, num value, num total, Color color) {
     final v = total == 0 ? 0.0 : value / total;
     return Padding(
@@ -821,16 +963,20 @@ class _LeadsTabState extends State<LeadsTab> {
   }
 
   Widget _chartBox(String title, String sub, Widget child) {
-    return _card(Container(
-      height: 300,
-      padding: const EdgeInsets.all(16),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900)),
-        Text(sub, style: const TextStyle(fontSize: 11, color: Color(0xff64748b))),
-        const SizedBox(height: 12),
-        Expanded(child: child),
-      ]),
-    ));
+    return _card(
+      SizedBox(
+        height: 320,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900)),
+            Text(sub, style: const TextStyle(fontSize: 11, color: Color(0xff64748b))),
+            const SizedBox(height: 12),
+            Expanded(child: child),
+          ]),
+        ),
+      ),
+    );
   }
 
   Widget _badge(String text, Color color) {

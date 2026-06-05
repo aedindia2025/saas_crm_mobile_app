@@ -57,9 +57,13 @@ class _DashboardShellState extends State<DashboardShell>
     _NavModule("Approvals", Icons.verified_rounded, Color(0xFFEC4899)),
   ];
 
+  String _tenantSlug = '';
+  String fullName = '';
+
   @override
   void initState() {
     super.initState();
+    _loadTenantSlug();
 
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
@@ -87,6 +91,15 @@ class _DashboardShellState extends State<DashboardShell>
     super.dispose();
   }
 
+  Future<void> _loadTenantSlug() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _tenantSlug = prefs.getString('tenant_slug') ?? '';
+      fullName = prefs.getString('full_name') ?? '';
+
+    });
+  }
+
   void _push(Widget page) {
     Navigator.push(context, _fadeRoute(page));
   }
@@ -110,10 +123,10 @@ class _DashboardShellState extends State<DashboardShell>
         _push(const LeadList());
         break;
       case "Opportunity":
-        _push(const OpportunityList());
+        _push(OpportunityList(tenantSlug: _tenantSlug));
         break;
       case "EMD/BG":
-        _push(const EmdBg());
+        _push(EmdBg(tenantSlug: _tenantSlug));
         break;
       case "KAM 360":
         _push(const Kam360Page());
@@ -152,21 +165,155 @@ class _DashboardShellState extends State<DashboardShell>
     }
   }
 
+  Future<bool?> _showExitDialog() {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x22000000),
+                  blurRadius: 24,
+                  offset: Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(
+                      colors: [Color(0xff2563eb), Color(0xff3b82f6)],
+                    ),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x332563eb),
+                        blurRadius: 14,
+                        offset: Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.logout_rounded,
+                    color: Colors.white,
+                    size: 26,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  "Exit Application",
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xff0f172a),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  "Do you want to exit from this app?",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.35,
+                    color: Color(0xff64748b),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, 40),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(13),
+                          ),
+                          side: const BorderSide(color: Color(0xffcbd5e1)),
+                        ),
+                        child: const Text(
+                          "No",
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xff475569),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(width: 10),
+
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        style: ElevatedButton.styleFrom(
+                          elevation: 0,
+                          backgroundColor: Color(0xff2563eb),
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size(0, 40),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(13),
+                          ),
+                        ),
+                        child: const Text(
+                          "Yes",
+                          style: TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                    ),
+
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      key: _scaffoldKey,
-      backgroundColor: Colors.white,
-      drawer: _buildDrawer(),
-      body: FadeTransition(
-        opacity: _fadeAnim,
-        child: Column(
-          children: [
-            _buildTopBar(),
-            Expanded(
-              child: _buildWebDashboardBody(),
-            ),
-          ],
+
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) async {
+        if (didPop) return;
+
+        final shouldExit = await _showExitDialog();
+
+        if (shouldExit == true) {
+          SystemNavigator.pop();
+        }
+      },
+      child: Scaffold(
+        key: _scaffoldKey,
+        backgroundColor: Colors.white,
+        drawer: _buildDrawer(),
+        body: FadeTransition(
+          opacity: _fadeAnim,
+          child: Column(
+            children: [
+              _buildTopBar(),
+              Expanded(
+                child: _buildWebDashboardBody(),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -174,113 +321,182 @@ class _DashboardShellState extends State<DashboardShell>
 
   Widget _buildDrawer() {
     return Drawer(
-      backgroundColor: Colors.white,
+      width: 310,
+      backgroundColor: const Color(0xfff8fafc),
       child: SafeArea(
         child: Column(
           children: [
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Color(0xFF112B4B),
-                    Color(0xFF397BEE),
-                  ],
+              margin: const EdgeInsets.all(14),
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xff0f172a), Color(0xff1d4ed8), Color(0xff38bdf8)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x331d4ed8),
+                    blurRadius: 22,
+                    offset: Offset(0, 10),
+                  ),
+                ],
               ),
-              child: const Column(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  CircleAvatar(
-                    radius: 26,
-                    backgroundColor: Colors.white,
-                    child: Text(
-                      'A',
-                      style: TextStyle(
-                        color: Color(0xFF2563EB),
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                      ),
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(.16),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: Colors.white24),
+                    ),
+                    child: const Icon(
+                      Icons.dashboard_customize_rounded,
+                      color: Colors.white,
+                      size: 28,
                     ),
                   ),
-                  SizedBox(height: 12),
+                  const SizedBox(height: 16),
                   Text(
-                    'Admin',
-                    style: TextStyle(
+                    fullName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 18,
+                      fontSize: 19,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
-                  SizedBox(height: 4),
-                  Text(
-                    'Ascent CRM',
-                    style: TextStyle(
-                      color: Color(0xFFDCEBFF),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                  const SizedBox(height: 5),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(.14),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.white24),
+                    ),
+                    child: const Text(
+                      "AZCENTRIX CRM",
+                      style: TextStyle(
+                        color: Color(0xffe0f2fe),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: .5,
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
+
             Expanded(
               child: ListView.separated(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.fromLTRB(14, 4, 14, 14),
                 itemCount: _modules.length,
                 separatorBuilder: (_, __) => const SizedBox(height: 8),
                 itemBuilder: (_, i) {
                   final item = _modules[i];
 
-                  return ListTile(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    tileColor: item.color.withOpacity(.08),
-                    leading: Icon(
-                      item.icon,
-                      color: item.color,
-                    ),
-                    title: Text(
-                      item.title,
-                      style: const TextStyle(
-                        color: Color(0xFF0F172A),
-                        fontWeight: FontWeight.w800,
+                  return Material(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(18),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _drawerNav(item.title);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: const Color(0xffe2e8f0)),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x080f172a),
+                              blurRadius: 12,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: item.color.withOpacity(.12),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Icon(item.icon, color: item.color, size: 21),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                item.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Color(0xff0f172a),
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                            const Icon(
+                              Icons.chevron_right_rounded,
+                              color: Color(0xff94a3b8),
+                              size: 20,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-
-                    onTap: () {
-                      Navigator.pop(context);
-                      _drawerNav(item.title);
-                    },
                   );
                 },
               ),
             ),
 
             Padding(
-              padding: const EdgeInsets.all(14),
-              child: ListTile(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                tileColor: Colors.red.withOpacity(0.08),
-                leading: const Icon(
-                  Icons.logout_rounded,
-                  color: Colors.red,
-                ),
-                title: const Text(
-                  "Logout",
-                  style: TextStyle(
-                    color: Colors.red,
-                    fontWeight: FontWeight.w800,
+              padding: const EdgeInsets.fromLTRB(14, 4, 14, 14),
+              child: Material(
+                color: const Color(0xfffff1f2),
+                borderRadius: BorderRadius.circular(18),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(18),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    await logoutUser();
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: const Color(0xffffcdd2)),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.logout_rounded, color: Color(0xffdc2626)),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            "Logout",
+                            style: TextStyle(
+                              color: Color(0xffdc2626),
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                onTap: () async {
-                  Navigator.pop(context);
-                  await logoutUser();
-                },
               ),
             ),
           ],
@@ -357,32 +573,24 @@ class _DashboardShellState extends State<DashboardShell>
                 ),
               ),
             ),
-            _iconBtn(
-              Icons.notifications_outlined,
-              badge: true,
-              onTap: () => _push(const NotificationPage()),
-            ),
-            const SizedBox(width: 10),
-            const CircleAvatar(
-              radius: 18,
-              backgroundColor: Color(0xFF3B82F6),
-              child: Text(
-                'A',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            const Text(
-              'Admin',
+
+            Text(
+              '${fullName}',
               style: TextStyle(
                 color: Color(0xFF0F172A),
                 fontSize: 14,
                 fontWeight: FontWeight.w900,
               ),
             ),
+
+            const SizedBox(width: 12),
+
+            _iconBtn(
+              Icons.notifications_outlined,
+              badge: true,
+              onTap: () => _push(const NotificationPage()),
+            ),
+
           ],
         ),
       ),

@@ -1,8 +1,8 @@
 import 'dart:convert';
 
+import 'package:ascent_crm/api_helpers/api_method.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AppColors {
@@ -77,7 +77,6 @@ class ContactFormModel {
 
 class _CreateCustomerState extends State<CreateCustomer> with SingleTickerProviderStateMixin {
   static const String baseUrl = 'http://103.110.236.187:3076/api/v1';
-  static const String tenantSlug = 'ascent';
   static const String draftKey = 'create_customer_draft_v2';
 
   final _formKey = GlobalKey<FormState>();
@@ -91,6 +90,7 @@ class _CreateCustomerState extends State<CreateCustomer> with SingleTickerProvid
   bool isApplyingDraftOrEdit = false;
 
   String? token;
+  String? tenantSlug;
   String? customerNameError;
 
   List<String> customerNameList = [];
@@ -153,7 +153,7 @@ class _CreateCustomerState extends State<CreateCustomer> with SingleTickerProvid
 
   Map<String, String> get headers => {
     'Authorization': 'Bearer $token',
-    'X-Tenant-Slug': tenantSlug,
+    'X-Tenant-Slug': tenantSlug ?? '',
     'Accept': 'application/json',
     'Content-Type': 'application/json',
   };
@@ -192,6 +192,7 @@ class _CreateCustomerState extends State<CreateCustomer> with SingleTickerProvid
   Future<void> getSharedPref() async {
     final prefs = await SharedPreferences.getInstance();
     token = prefs.getString('auth_token');
+    tenantSlug = prefs.getString('tenant_slug') ?? '';
 
     if (token != null) {
       await fetchGroupDropDown();
@@ -216,11 +217,13 @@ class _CreateCustomerState extends State<CreateCustomer> with SingleTickerProvid
     if (token == null) return;
 
     try {
-      final uri = Uri.parse('$baseUrl/customers/team-users');
-      final response = await http.get(uri, headers: headers);
+      final response = await ApiMethod.getRequest(
+        url: '$baseUrl/customers/team-users',
+        headers: headers,
+      );
 
-      if (response.statusCode == 200) {
-        final List res = jsonDecode(response.body);
+      if (response['statusCode'] == 200) {
+        final List res = response['data'];
         if (!mounted) return;
         setState(() {
           teamUsers = List<Map<String, dynamic>>.from(res);
@@ -235,11 +238,13 @@ class _CreateCustomerState extends State<CreateCustomer> with SingleTickerProvid
     if (token == null) return;
 
     try {
-      final uri = Uri.parse('$baseUrl/customers/group-dropdown');
-      final response = await http.get(uri, headers: headers);
+      final response = await ApiMethod.getRequest(
+        url: '$baseUrl/customers/group-dropdown',
+        headers: headers,
+      );
 
-      if (response.statusCode == 200) {
-        final List res = jsonDecode(response.body);
+      if (response['statusCode'] == 200) {
+        final List res = response['data'];
         if (!mounted) return;
         setState(() {
           groupNameList = res
@@ -260,11 +265,13 @@ class _CreateCustomerState extends State<CreateCustomer> with SingleTickerProvid
     if (token == null) return;
 
     try {
-      final uri = Uri.parse('$baseUrl/customers/dropdown');
-      final response = await http.get(uri, headers: headers);
+      final response = await ApiMethod.getRequest(
+        url: '$baseUrl/customers/dropdown',
+        headers: headers,
+      );
 
-      if (response.statusCode == 200) {
-        final List res = jsonDecode(response.body);
+      if (response['statusCode'] == 200) {
+        final List res = response['data'];
         if (!mounted) return;
         setState(() {
           customerNameList = res
@@ -550,11 +557,13 @@ class _CreateCustomerState extends State<CreateCustomer> with SingleTickerProvid
     if (token == null) return;
 
     try {
-      final uri = Uri.parse('$baseUrl/customers/pincode/$pincode');
-      final response = await http.get(uri, headers: headers);
+      final response = await ApiMethod.getRequest(
+        url: '$baseUrl/customers/pincode/$pincode',
+        headers: headers,
+      );
 
-      if (response.statusCode == 200) {
-        final res = jsonDecode(response.body);
+      if (response['statusCode'] == 200) {
+        final res = response['data'];
 
         setState(() {
           if (isBilling) {
@@ -925,12 +934,12 @@ class _CreateCustomerState extends State<CreateCustomer> with SingleTickerProvid
           : "$baseUrl/customers/";
 
       final response = widget.isEdit
-          ? await http.put(Uri.parse(url), headers: headers, body: jsonEncode(body))
-          : await http.post(Uri.parse(url), headers: headers, body: jsonEncode(body));
+          ? await ApiMethod.putRequest(url: url, headers: headers, body: body)
+          : await ApiMethod.postRequest(url: url, headers: headers, body: body);
 
       setState(() => isLoading = false);
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
+      if (response['statusCode'] == 200 || response['statusCode'] == 201) {
         if (!widget.isEdit) {
           final prefs = await SharedPreferences.getInstance();
           await prefs.remove(draftKey);
@@ -943,7 +952,7 @@ class _CreateCustomerState extends State<CreateCustomer> with SingleTickerProvid
 
         if (mounted) Navigator.pop(context, true);
       } else {
-        showSnack(response.body, Colors.red);
+        showSnack(response['data']?.toString() ?? "An error occurred", Colors.red);
       }
     } catch (e) {
       setState(() => isLoading = false);
