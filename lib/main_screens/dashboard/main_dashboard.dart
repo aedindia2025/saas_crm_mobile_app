@@ -1,9 +1,14 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:ascent_crm/main_screens/dashboard/tender.dart';
 import 'package:ascent_crm/main_screens/dashboard/travel.dart';
 import 'package:ascent_crm/main_screens/travel_management/Travel_tada_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 
 import '../../login/login_screen.dart';
 import '../EMD_BG/emd_bg.dart' hide AppColors;
@@ -14,6 +19,7 @@ import '../kam_360/kam_360.dart' hide AppColors;
 import '../notification/notification.dart';
 import '../opportunity/opportunity_list.dart' hide AppColors;
 
+import '../quotations/quotations.dart';
 import 'customer.dart';
 import 'emd_bg.dart';
 import 'kam_360.dart';
@@ -41,6 +47,12 @@ class _DashboardShellState extends State<DashboardShell>
 
   late AnimationController _fadeCtrl;
   late Animation<double> _fadeAnim;
+  Timer? _locationTimer;
+  bool _isSendingLocation = false;
+
+
+  static const String _locationUrl =
+      "https://ascent.crm.azcentrix.com:4447/api/v1/user-locations/store";
 
   static const Color _bg = Color(0xFFFFFFFF);
   static const Color _surfaceAlt = Color(0xFFF0F4FB);
@@ -51,6 +63,9 @@ class _DashboardShellState extends State<DashboardShell>
     _NavModule("Customers", Icons.groups_rounded, Color(0xFF3060A0)),
     _NavModule("Leads", Icons.person_add_alt_1_rounded, Color(0xFF10B981)),
     _NavModule("Opportunity", Icons.trending_up_rounded, Color(0xFFF59E0B)),
+
+    _NavModule("Quotations", Icons.request_quote, Color(0xFFF59E0B)),
+
     _NavModule("EMD/BG", Icons.account_balance_wallet_rounded, Color(0xFFEF4444)),
     _NavModule("KAM 360", Icons.manage_accounts_rounded, Color(0xFF8B5CF6)),
     _NavModule("Travel Management", Icons.flight_takeoff_rounded, Color(0xFF0EA5E9)),
@@ -58,6 +73,7 @@ class _DashboardShellState extends State<DashboardShell>
   ];
 
   String _tenantSlug = '';
+  String auth_token = '';
   String fullName = '';
 
   @override
@@ -83,18 +99,300 @@ class _DashboardShellState extends State<DashboardShell>
     );
 
     _fadeCtrl.forward();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _startLocationTracking();
+    });
+
   }
 
   @override
   void dispose() {
+    _locationTimer?.cancel();
     _fadeCtrl.dispose();
     super.dispose();
+  }
+
+  Future<bool> _handleLocationPermission() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+
+    Future<bool?> showLocationDialog({
+      required IconData icon,
+      required String title,
+      required String message,
+      required String primaryText,
+      required String secondaryText,
+      required Color color,
+    }) {
+      return showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) {
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 22),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.14),
+                    blurRadius: 30,
+                    offset: const Offset(0, 14),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(22, 24, 22, 18),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          color.withOpacity(0.95),
+                          color.withOpacity(0.72),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(28),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 68,
+                          height: 68,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.18),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.28),
+                            ),
+                          ),
+                          child: Icon(
+                            icon,
+                            color: Colors.white,
+                            size: 34,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          title,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            height: 1.2,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(22, 20, 22, 8),
+                    child: Text(
+                      message,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Color(0xFF5F6B7A),
+                        fontSize: 14.5,
+                        height: 1.45,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 16, 18, 20),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF5F6B7A),
+                              side: const BorderSide(
+                                color: Color(0xFFE3E9F2),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                            child: Text(
+                              secondaryText,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            style: ElevatedButton.styleFrom(
+                              elevation: 0,
+                              backgroundColor: color,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                            child: Text(
+                              primaryText,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    }
+
+    if (!serviceEnabled) {
+      if (!mounted) return false;
+
+      final openSettings = await showLocationDialog(
+        icon: Icons.location_off_rounded,
+        title: "Turn on Location",
+        message:
+        "Location service is currently turned off. Please enable location to continue live tracking.",
+        primaryText: "Turn On",
+        secondaryText: "Cancel",
+        color: const Color(0xFF2563EB),
+      );
+
+      if (openSettings == true) {
+        await Geolocator.openLocationSettings();
+
+        await Future.delayed(const Duration(seconds: 2));
+
+        serviceEnabled = await Geolocator.isLocationServiceEnabled();
+
+        if (!serviceEnabled) {
+          debugPrint("Location service still disabled");
+          return false;
+        }
+      } else {
+        return false;
+      }
+    }
+
+    permission = await Geolocator.checkPermission();
+
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+
+      if (permission == LocationPermission.denied) {
+        debugPrint("Location permission denied");
+        return false;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      if (!mounted) return false;
+
+      final openAppSettings = await showLocationDialog(
+        icon: Icons.gpp_maybe_rounded,
+        title: "Permission Required",
+        message:
+        "Location permission is permanently denied. Please allow location permission from app settings to continue tracking.",
+        primaryText: "Open Settings",
+        secondaryText: "Cancel",
+        color: const Color(0xFFE67E22),
+      );
+
+      if (openAppSettings == true) {
+        await Geolocator.openAppSettings();
+      }
+
+      return false;
+    }
+
+    return true;
+  }
+
+  void _startLocationTracking() async {
+    final hasPermission = await _handleLocationPermission();
+
+    if (!hasPermission) return;
+
+    // Send immediately when page opens
+    await _sendCurrentLocation();
+
+    // Send every 30 seconds
+    _locationTimer?.cancel();
+    _locationTimer = Timer.periodic(
+      const Duration(seconds: 30),
+          (_) => _sendCurrentLocation(),
+    );
+  }
+
+  Future<void> _sendCurrentLocation() async {
+    if (_isSendingLocation) return;
+
+    _isSendingLocation = true;
+
+    try {
+      if (_tenantSlug.isEmpty || auth_token.isEmpty) {
+        final prefs = await SharedPreferences.getInstance();
+        _tenantSlug = prefs.getString('tenant_slug') ?? '';
+        auth_token = prefs.getString("auth_token") ?? "";
+        setState(() {});
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      final response = await http.post(
+        Uri.parse(_locationUrl),
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer ${auth_token}",
+          "X-Tenant-Slug": _tenantSlug,
+        },
+        body: jsonEncode({
+          "latitude": position.latitude,
+          "longitude": position.longitude,
+        }),
+      );
+
+      debugPrint("Location status: ${response.statusCode}");
+      debugPrint("Location response: ${response.body}");
+    } catch (e) {
+      debugPrint("Location send error: $e");
+    } finally {
+      _isSendingLocation = false;
+    }
   }
 
   Future<void> _loadTenantSlug() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _tenantSlug = prefs.getString('tenant_slug') ?? '';
+      auth_token = prefs.getString('auth_token') ?? '';
       fullName = prefs.getString('full_name') ?? '';
 
     });
@@ -134,6 +432,11 @@ class _DashboardShellState extends State<DashboardShell>
       case "Travel Management":
         _push(const TravelTadaPage());
         break;
+
+      case "Quotations":
+        _push(const Quotation());
+        break;
+
       case "Approvals":
         _push(const ApprovalsPage());
         break;
@@ -321,75 +624,132 @@ class _DashboardShellState extends State<DashboardShell>
 
   Widget _buildDrawer() {
     return Drawer(
-      width: 310,
+      width: 315,
       backgroundColor: const Color(0xfff8fafc),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.only(
+          topRight: Radius.circular(30),
+          bottomRight: Radius.circular(30),
+        ),
+      ),
       child: SafeArea(
         child: Column(
           children: [
             Container(
               width: double.infinity,
-              margin: const EdgeInsets.all(14),
+              margin: const EdgeInsets.fromLTRB(14, 14, 14, 10),
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(28),
                 gradient: const LinearGradient(
-                  colors: [Color(0xff0f172a), Color(0xff1d4ed8), Color(0xff38bdf8)],
+                  colors: [
+                    Color(0xff020617),
+                    Color(0xff1e3a8a),
+                    Color(0xff38bdf8),
+                  ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: const [
+                boxShadow: [
                   BoxShadow(
-                    color: Color(0x331d4ed8),
-                    blurRadius: 22,
-                    offset: Offset(0, 10),
+                    color: const Color(0xff2563eb).withOpacity(0.26),
+                    blurRadius: 28,
+                    offset: const Offset(0, 14),
                   ),
                 ],
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Stack(
                 children: [
-                  Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(.16),
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: Colors.white24),
-                    ),
-                    child: const Icon(
-                      Icons.dashboard_customize_rounded,
-                      color: Colors.white,
-                      size: 28,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    fullName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 19,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(.14),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.white24),
-                    ),
-                    child: const Text(
-                      "AZCENTRIX CRM",
-                      style: TextStyle(
-                        color: Color(0xffe0f2fe),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: .5,
+                  Positioned(
+                    right: -28,
+                    top: -28,
+                    child: Container(
+                      height: 110,
+                      width: 110,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withOpacity(0.08),
                       ),
                     ),
+                  ),
+                  Positioned(
+                    right: 18,
+                    bottom: -42,
+                    child: Container(
+                      height: 95,
+                      width: 95,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withOpacity(0.06),
+                      ),
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(.16),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(.24),
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.dashboard_customize_rounded,
+                          color: Colors.white,
+                          size: 30,
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      Text(
+                        fullName.isEmpty ? "Admin" : fullName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 7),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 11,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(.14),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(.22),
+                          ),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.auto_awesome_rounded,
+                              size: 13,
+                              color: Color(0xffe0f2fe),
+                            ),
+                            SizedBox(width: 5),
+                            Text(
+                              "Azcentrix Connect",
+                              style: TextStyle(
+                                color: Color(0xffe0f2fe),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: .4,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -397,46 +757,62 @@ class _DashboardShellState extends State<DashboardShell>
 
             Expanded(
               child: ListView.separated(
-                padding: const EdgeInsets.fromLTRB(14, 4, 14, 14),
+                padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
                 itemCount: _modules.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
                 itemBuilder: (_, i) {
                   final item = _modules[i];
 
                   return Material(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(18),
+                    color: Colors.transparent,
                     child: InkWell(
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: BorderRadius.circular(20),
                       onTap: () {
                         Navigator.pop(context);
                         _drawerNav(item.title);
                       },
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: const Color(0xffe2e8f0)),
-                          boxShadow: const [
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: const Color(0xffe2e8f0),
+                          ),
+                          boxShadow: [
                             BoxShadow(
-                              color: Color(0x080f172a),
-                              blurRadius: 12,
-                              offset: Offset(0, 4),
+                              color: const Color(0xff0f172a).withOpacity(0.04),
+                              blurRadius: 18,
+                              offset: const Offset(0, 8),
                             ),
                           ],
                         ),
                         child: Row(
                           children: [
                             Container(
-                              width: 40,
-                              height: 40,
+                              width: 43,
+                              height: 43,
                               decoration: BoxDecoration(
-                                color: item.color.withOpacity(.12),
-                                borderRadius: BorderRadius.circular(14),
+                                gradient: LinearGradient(
+                                  colors: [
+                                    item.color.withOpacity(.18),
+                                    item.color.withOpacity(.07),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(16),
                               ),
-                              child: Icon(item.icon, color: item.color, size: 21),
+                              child: Icon(
+                                item.icon,
+                                color: item.color,
+                                size: 22,
+                              ),
                             ),
-                            const SizedBox(width: 12),
+                            const SizedBox(width: 13),
                             Expanded(
                               child: Text(
                                 item.title,
@@ -445,14 +821,22 @@ class _DashboardShellState extends State<DashboardShell>
                                 style: const TextStyle(
                                   color: Color(0xff0f172a),
                                   fontSize: 14,
-                                  fontWeight: FontWeight.w800,
+                                  fontWeight: FontWeight.w900,
                                 ),
                               ),
                             ),
-                            const Icon(
-                              Icons.chevron_right_rounded,
-                              color: Color(0xff94a3b8),
-                              size: 20,
+                            Container(
+                              width: 28,
+                              height: 28,
+                              decoration: BoxDecoration(
+                                color: const Color(0xfff1f5f9),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(
+                                Icons.chevron_right_rounded,
+                                color: Color(0xff64748b),
+                                size: 20,
+                              ),
                             ),
                           ],
                         ),
@@ -464,25 +848,40 @@ class _DashboardShellState extends State<DashboardShell>
             ),
 
             Padding(
-              padding: const EdgeInsets.fromLTRB(14, 4, 14, 14),
+              padding: const EdgeInsets.fromLTRB(14, 4, 14, 16),
               child: Material(
-                color: const Color(0xfffff1f2),
-                borderRadius: BorderRadius.circular(18),
+                color: Colors.transparent,
                 child: InkWell(
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(20),
                   onTap: () async {
                     Navigator.pop(context);
                     await logoutUser();
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 14,
+                    ),
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: const Color(0xffffcdd2)),
+                      color: const Color(0xfffff1f2),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: const Color(0xffffcdd2),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xffef4444).withOpacity(0.08),
+                          blurRadius: 18,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
                     ),
                     child: const Row(
                       children: [
-                        Icon(Icons.logout_rounded, color: Color(0xffdc2626)),
+                        Icon(
+                          Icons.logout_rounded,
+                          color: Color(0xffdc2626),
+                        ),
                         SizedBox(width: 12),
                         Expanded(
                           child: Text(
@@ -492,6 +891,11 @@ class _DashboardShellState extends State<DashboardShell>
                               fontWeight: FontWeight.w900,
                             ),
                           ),
+                        ),
+                        Icon(
+                          Icons.arrow_forward_rounded,
+                          color: Color(0xffdc2626),
+                          size: 18,
                         ),
                       ],
                     ),
@@ -532,6 +936,23 @@ class _DashboardShellState extends State<DashboardShell>
     final prefs = await SharedPreferences.getInstance();
 
     await prefs.remove('auth_token');
+    await prefs.remove('full_name');
+
+    if (!mounted) return;
+
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const LoginScreen(),
+      ),
+          (route) => false,
+    );
+  }
+
+ /* Future<void> logoutUser() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.remove('auth_token');
     await prefs.remove('rememberMe');
     await prefs.remove('organizationName');
     await prefs.remove('userName');
@@ -545,52 +966,120 @@ class _DashboardShellState extends State<DashboardShell>
       ),
           (route) => false,
     );
-  }
+  }*/
 
   Widget _buildTopBar() {
     return SafeArea(
       bottom: false,
       child: Container(
-        height: 62,
-        color: _bg,
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xff0f172a).withOpacity(0.06),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
         child: Row(
           children: [
             _iconBtn(
-              Icons.menu,
+              Icons.menu_rounded,
               onTap: () => _scaffoldKey.currentState?.openDrawer(),
             ),
+
             const SizedBox(width: 12),
 
             Expanded(
-              child: Text(
-                _selectedTabName,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Color(0xFF0F172A),
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _selectedTabName,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xff0f172a),
+                      fontSize: 19,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.4,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    "Dashboard workspace",
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Color(0xff64748b),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(width: 10),
+
+            Container(
+              constraints: const BoxConstraints(maxWidth: 120),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 8,
+              ),
+              decoration: BoxDecoration(
+                color: const Color(0xfff1f5f9),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: const Color(0xffe2e8f0),
                 ),
               ),
-            ),
-
-            Text(
-              '${fullName}',
-              style: TextStyle(
-                color: Color(0xFF0F172A),
-                fontSize: 14,
-                fontWeight: FontWeight.w900,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 23,
+                    height: 23,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        colors: [
+                          Color(0xff2563eb),
+                          Color(0xff38bdf8),
+                        ],
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.person_rounded,
+                      color: Colors.white,
+                      size: 14,
+                    ),
+                  ),
+                  const SizedBox(width: 7),
+                  Flexible(
+                    child: Text(
+                      fullName.isEmpty ? "Admin" : fullName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xff0f172a),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
 
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
 
             _iconBtn(
-              Icons.notifications_outlined,
+              Icons.notifications_rounded,
               badge: true,
               onTap: () => _push(const NotificationPage()),
             ),
-
           ],
         ),
       ),
@@ -602,38 +1091,56 @@ class _DashboardShellState extends State<DashboardShell>
         bool badge = false,
         VoidCallback? onTap,
       }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: _surfaceAlt,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Stack(
-          children: [
-            Center(
-              child: Icon(
-                icon,
-                color: _textPrimary,
-                size: 18,
-              ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          width: 43,
+          height: 43,
+          decoration: BoxDecoration(
+            color: const Color(0xfff1f5f9),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: const Color(0xffe2e8f0),
             ),
-            if (badge)
-              Positioned(
-                right: 8,
-                top: 8,
-                child: Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
-                    color: _red,
-                    shape: BoxShape.circle,
-                  ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xff0f172a).withOpacity(0.04),
+                blurRadius: 12,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              Center(
+                child: Icon(
+                  icon,
+                  color: const Color(0xff0f172a),
+                  size: 20,
                 ),
               ),
-          ],
+              if (badge)
+                Positioned(
+                  right: 9,
+                  top: 9,
+                  child: Container(
+                    width: 9,
+                    height: 9,
+                    decoration: BoxDecoration(
+                      color: const Color(0xffef4444),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white,
+                        width: 1.5,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -641,12 +1148,27 @@ class _DashboardShellState extends State<DashboardShell>
 
   Widget _buildWebDashboardBody() {
     return Container(
-      color: const Color(0xFFF1F5F9),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Color(0xfff8fafc),
+            Color(0xffeef4ff),
+          ],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+      ),
       child: Column(
         children: [
           _buildWebTabsBar(),
           Expanded(
-            child: _buildDashboardTabBody(),
+            child: ClipRRect(
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(24),
+                topRight: Radius.circular(24),
+              ),
+              child: _buildDashboardTabBody(),
+            ),
           ),
         ],
       ),
@@ -666,26 +1188,29 @@ class _DashboardShellState extends State<DashboardShell>
     ];
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
       decoration: const BoxDecoration(
-        color: Color(0xFFF8FAFC),
-        boxShadow: [
-          BoxShadow(
-            color: Color(0x140F172A),
-            blurRadius: 16,
-            offset: Offset(0, 8),
-          ),
-        ],
+        color: Colors.transparent,
       ),
       child: Container(
-        height: 62,
+        height: 66,
         padding: const EdgeInsets.symmetric(
           horizontal: 8,
           vertical: 8,
         ),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(30),
+          color: Colors.white.withOpacity(0.92),
+          borderRadius: BorderRadius.circular(26),
+          border: Border.all(
+            color: const Color(0xffdbeafe),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xff1e3a8a).withOpacity(0.08),
+              blurRadius: 22,
+              offset: const Offset(0, 10),
+            ),
+          ],
         ),
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
@@ -696,62 +1221,59 @@ class _DashboardShellState extends State<DashboardShell>
             final active = _activeDashTab == tab.id;
 
             return InkWell(
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(20),
               onTap: () => setState(() => _activeDashTab = tab.id),
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(horizontal: 14),
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOut,
+                padding: const EdgeInsets.symmetric(horizontal: 13),
                 decoration: BoxDecoration(
                   gradient: active
                       ? const LinearGradient(
                     colors: [
-                      Color(0xFF123B70),
-                      Color(0xFF2F6FEA),
+                      Color(0xff0f172a),
+                      Color(0xff2563eb),
+                      Color(0xff38bdf8),
                     ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   )
                       : null,
-                  color: active ? null : const Color(0xFFF8FBFF),
-                  borderRadius: BorderRadius.circular(18),
+                  color: active ? null : const Color(0xfff8fafc),
+                  borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: active
-                        ? const Color(0xFF0F172A)
-                        : const Color(0xFFD7E4F7),
+                        ? Colors.white.withOpacity(0.12)
+                        : const Color(0xffe2e8f0),
                   ),
                   boxShadow: active
-                      ? const [
+                      ? [
                     BoxShadow(
-                      color: Color(0x332F6FEA),
-                      blurRadius: 16,
-                      offset: Offset(0, 8),
+                      color: const Color(0xff2563eb).withOpacity(0.26),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
                     ),
                   ]
                       : null,
                 ),
                 child: Row(
                   children: [
-                    Icon(
-                      Icons.drag_indicator_rounded,
-                      size: 15,
-                      color: active
-                          ? Colors.white70
-                          : const Color(0xFF8AA0BC),
-                    ),
-                    const SizedBox(width: 7),
-                    Container(
-                      width: 26,
-                      height: 26,
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 220),
+                      width: 30,
+                      height: 30,
                       decoration: BoxDecoration(
                         color: active
-                            ? Colors.white.withOpacity(.15)
-                            : const Color(0xFFEFF6FF),
-                        borderRadius: BorderRadius.circular(8),
+                            ? Colors.white.withOpacity(.17)
+                            : const Color(0xffeff6ff),
+                        borderRadius: BorderRadius.circular(11),
                       ),
                       child: Icon(
                         tab.icon,
-                        size: 15,
+                        size: 16,
                         color: active
                             ? Colors.white
-                            : const Color(0xFF1D3F66),
+                            : const Color(0xff1e3a8a),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -760,9 +1282,10 @@ class _DashboardShellState extends State<DashboardShell>
                       style: TextStyle(
                         color: active
                             ? Colors.white
-                            : const Color(0xFF263B55),
+                            : const Color(0xff334155),
                         fontSize: 13,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.1,
                       ),
                     ),
                   ],

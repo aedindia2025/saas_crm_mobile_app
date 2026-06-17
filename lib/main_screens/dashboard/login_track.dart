@@ -18,7 +18,7 @@ class LoginTrackerTab extends StatefulWidget {
 }
 
 class _LoginTrackerTabState extends State<LoginTrackerTab> {
-  static const baseUrl = "http://103.110.236.187:3076/api/v1";
+  static const baseUrl = "https://ascent.crm.azcentrix.com:4447/api/v1";
 
   bool loading = true;
   Map<String, dynamic>? data;
@@ -1537,107 +1537,67 @@ class _LoginTrackerTabState extends State<LoginTrackerTab> {
   }
 
   Widget _reportView() {
-    if (isMobile) {
-      return Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: _reportTabButton(
+    return _card(
+      Padding(
+        padding: EdgeInsets.all(isMobile ? 12 : 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _reportTabButton(
                   "logged_in",
-                  "Logged In",
+                  isMobile ? "Logged In" : "Logged In Today",
                   Icons.verified_user,
                   filteredLoggedIn.length,
                   const Color(0xff059669),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _reportTabButton(
+                _reportTabButton(
                   "not_logged_in",
-                  "Not Logged",
+                  isMobile ? "Not Logged" : "Not Logged In",
                   Icons.person_off,
                   filteredNotLoggedIn.length,
                   const Color(0xffdc2626),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            decoration: _input(
-              reportTab == "logged_in"
-                  ? "Search by name, role, group..."
-                  : "Search by name, employee code, phone...",
+              ],
             ),
-            onChanged: (v) => setState(() => searchQuery = v),
-          ),
-          if (reportTab == "not_logged_in" &&
-              selectedNotLoggedIn.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => sendReminder(selectedNotLoggedIn.toList()),
-                icon: const Icon(Icons.send, size: 14),
-                label: Text(
-                  "Send Reminder (${selectedNotLoggedIn.length})",
-                ),
-              ),
-            ),
-          ],
-          const SizedBox(height: 14),
-          reportTab == "logged_in" ? _loggedInTable() : _notLoggedInTable(),
-        ],
-      );
-    }
 
-    return Column(
-      children: [
-        Row(
-          children: [
-            _reportTabButton(
-              "logged_in",
-              "Logged In Today",
-              Icons.verified_user,
-              filteredLoggedIn.length,
-              const Color(0xff059669),
-            ),
-            const SizedBox(width: 8),
-            _reportTabButton(
-              "not_logged_in",
-              "Not Logged In",
-              Icons.person_off,
-              filteredNotLoggedIn.length,
-              const Color(0xffdc2626),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: TextField(
-                decoration: _input(
-                  reportTab == "logged_in"
-                      ? "Search by name, role, group..."
-                      : "Search by name, employee code, phone...",
-                ),
-                onChanged: (v) => setState(() => searchQuery = v),
+            const SizedBox(height: 14),
+
+            TextField(
+              decoration: _input(
+                reportTab == "logged_in"
+                    ? "Search by name, role, group..."
+                    : "Search by name, employee code, phone...",
               ),
+              onChanged: (v) => setState(() => searchQuery = v),
             ),
+
             if (reportTab == "not_logged_in" &&
                 selectedNotLoggedIn.isNotEmpty) ...[
-              const SizedBox(width: 10),
-              ElevatedButton.icon(
-                onPressed: () => sendReminder(selectedNotLoggedIn.toList()),
-                icon: const Icon(Icons.send, size: 14),
-                label: Text(
-                  "Send Reminder (${selectedNotLoggedIn.length})",
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => sendReminder(selectedNotLoggedIn.toList()),
+                  icon: const Icon(Icons.send, size: 14),
+                  label: Text(
+                    "Send Reminder (${selectedNotLoggedIn.length})",
+                  ),
                 ),
               ),
             ],
+
+            const SizedBox(height: 16),
+
+            reportTab == "logged_in"
+                ? _loggedInTable()
+                : _notLoggedInTable(),
           ],
         ),
-        const SizedBox(height: 14),
-        reportTab == "logged_in" ? _loggedInTable() : _notLoggedInTable(),
-      ],
+      ),
     );
   }
 
@@ -1697,24 +1657,144 @@ class _LoginTrackerTabState extends State<LoginTrackerTab> {
     );
   }
 
-  Widget _loggedInTable() {
-    if (isMobile) {
-      if (filteredLoggedIn.isEmpty) {
-        return _emptyCard("No logged in employees found");
-      }
+  Widget _reportPlainInfo(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label.toUpperCase(),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 9,
+            color: Color(0xff94a3b8),
+            fontWeight: FontWeight.w900,
+            letterSpacing: .2,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 12,
+            color: Color(0xff0f172a),
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
+    );
+  }
 
-      return Column(
-        children: filteredLoggedIn.map((r) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: _mobileDataCard(
-              title: "${r["user_name"] ?? "—"}",
-              subtitle: "${r["username"] ?? ""}",
-              badge: _badge(
-                "${r["role"] ?? ""}",
-                const Color(0xff64748b),
+  Widget _reportInfoRows(List<MapEntry<String, String>> rows) {
+    return Column(
+      children: List.generate((rows.length / 2).ceil(), (index) {
+        final first = rows[index * 2];
+        final secondIndex = index * 2 + 1;
+        final second = secondIndex < rows.length ? rows[secondIndex] : null;
+
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: index == ((rows.length / 2).ceil() - 1) ? 0 : 12,
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _reportPlainInfo(first.key, first.value),
               ),
-              rows: [
+              const SizedBox(width: 16),
+              Expanded(
+                child: second == null
+                    ? const SizedBox()
+                    : _reportPlainInfo(second.key, second.value),
+              ),
+            ],
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _loggedInTable() {
+    if (filteredLoggedIn.isEmpty) {
+      return _emptyCard("No logged in employees found");
+    }
+
+    return Column(
+      children: filteredLoggedIn.map((r) {
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(
+            horizontal: 4,
+            vertical: 14,
+          ),
+          decoration: const BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: Color(0xffe2e8f0),
+              ),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: const Color(0xffdcfce7),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.verified_user,
+                      color: Color(0xff059669),
+                      size: 19,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "${r["user_name"] ?? "—"}",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xff0f172a),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          "${r["username"] ?? ""}",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Color(0xff64748b),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _badge(
+                    "${r["role"] ?? ""}",
+                    const Color(0xff64748b),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 14),
+
+              _reportInfoRows([
                 _infoPair("Region", "${r["region"] ?? "—"}"),
                 _infoPair("Group", "${r["group"] ?? "—"}"),
                 _infoPair("Branch", "${r["branch"] ?? "—"}"),
@@ -1728,82 +1808,11 @@ class _LoginTrackerTabState extends State<LoginTrackerTab> {
                       ? "${r["devices"][0]}"
                       : "—",
                 ),
-              ],
-            ),
-          );
-        }).toList(),
-      );
-    }
-
-    return _card(
-      SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: DataTable(
-          headingRowColor: WidgetStateProperty.all(
-            const Color(0xfff8fafc),
+              ]),
+            ],
           ),
-          columns: const [
-            DataColumn(label: Text("Employee")),
-            DataColumn(label: Text("Role")),
-            DataColumn(label: Text("Region")),
-            DataColumn(label: Text("Group")),
-            DataColumn(label: Text("Branch")),
-            DataColumn(label: Text("First Login")),
-            DataColumn(label: Text("Last Activity")),
-            DataColumn(label: Text("Duration")),
-            DataColumn(label: Text("Sessions")),
-            DataColumn(label: Text("Device")),
-          ],
-          rows: filteredLoggedIn.map((r) {
-            return DataRow(
-              cells: [
-                DataCell(
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        "${r["user_name"] ?? "—"}",
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      Text(
-                        "${r["username"] ?? ""}",
-                        style: const TextStyle(
-                          fontSize: 10,
-                          color: Color(0xff94a3b8),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                DataCell(
-                  _badge(
-                    "${r["role"] ?? ""}",
-                    const Color(0xff64748b),
-                  ),
-                ),
-                DataCell(Text("${r["region"] ?? "—"}")),
-                DataCell(Text("${r["group"] ?? "—"}")),
-                DataCell(Text("${r["branch"] ?? "—"}")),
-                DataCell(Text(fmtTime(r["first_login"]))),
-                DataCell(Text(fmtTime(r["last_logout"]))),
-                DataCell(Text(fmtDuration(r["duration_minutes"]))),
-                DataCell(Text(fmtN(r["session_count"]))),
-                DataCell(
-                  Text(
-                    (r["devices"] is List &&
-                        (r["devices"] as List).isNotEmpty)
-                        ? "${r["devices"][0]}"
-                        : "—",
-                  ),
-                ),
-              ],
-            );
-          }).toList(),
-        ),
-      ),
+        );
+      }).toList(),
     );
   }
 
@@ -1811,285 +1820,176 @@ class _LoginTrackerTabState extends State<LoginTrackerTab> {
     final allSelected = filteredNotLoggedIn.isNotEmpty &&
         selectedNotLoggedIn.length == filteredNotLoggedIn.length;
 
-    if (isMobile) {
-      return Column(
-        children: [
-          _card(
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      "${fmtN(filteredNotLoggedIn.length)} employees haven't logged in today",
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xff64748b),
-                      ),
-                    ),
-                  ),
-                  TextButton.icon(
-                    onPressed: () {
-                      setState(() {
-                        if (allSelected) {
-                          selectedNotLoggedIn.clear();
-                        } else {
-                          selectedNotLoggedIn
-                            ..clear()
-                            ..addAll(
-                              filteredNotLoggedIn.map(
-                                    (u) => n(u["id"]).toInt(),
-                              ),
-                            );
-                        }
-                      });
-                    },
-                    icon: Icon(
-                      allSelected
-                          ? Icons.check_box
-                          : Icons.check_box_outline_blank,
-                      size: 18,
-                    ),
-                    label: Text(allSelected ? "Clear" : "All"),
-                  ),
-                ],
-              ),
+    return Column(
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xfffff7ed),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: const Color(0xffffedd5),
             ),
           ),
-          const SizedBox(height: 10),
-          if (filteredNotLoggedIn.isEmpty)
-            _emptyCard("No employees found")
-          else
-            ...filteredNotLoggedIn.map((r) {
-              final id = n(r["id"]).toInt();
-              final selected = selectedNotLoggedIn.contains(id);
-
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _card(
-                  Container(
-                    decoration: BoxDecoration(
-                      color: selected
-                          ? const Color(0xffeef2ff)
-                          : Colors.white,
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Checkbox(
-                                value: selected,
-                                onChanged: (_) => setState(() {
-                                  selected
-                                      ? selectedNotLoggedIn.remove(id)
-                                      : selectedNotLoggedIn.add(id);
-                                }),
-                              ),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment:
-                                  CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      "${r["name"] ?? r["user_name"] ?? "—"}",
-                                      style: const TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w900,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      "${r["username"] ?? ""}",
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        color: Color(0xff94a3b8),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              _badge(
-                                "${r["role"] ?? ""}",
-                                const Color(0xff64748b),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          _infoGrid([
-                            _infoPair("Region", "${r["region"] ?? "—"}"),
-                            _infoPair("Group", "${r["group"] ?? "—"}"),
-                            _infoPair("Branch", "${r["branch"] ?? "—"}"),
-                            _infoPair("Phone", "${r["phone"] ?? "—"}"),
-                            _infoPair(
-                              "Emp Code",
-                              "${r["employee_code"] ?? "—"}",
-                            ),
-                            _infoPair(
-                              "Last Login",
-                              r["last_login"] == null
-                                  ? "Never logged in"
-                                  : fmtDateTime(r["last_login"]),
-                            ),
-                          ]),
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed: () => sendReminder([id]),
-                              icon: const Icon(Icons.mail, size: 14),
-                              label: const Text("Send Mail"),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }),
-        ],
-      );
-    }
-
-    return _card(
-      Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                Text(
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
                   "${fmtN(filteredNotLoggedIn.length)} employees haven't logged in today",
                   style: const TextStyle(
                     fontSize: 12,
-                    color: Color(0xff64748b),
+                    color: Color(0xff9a3412),
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-                const Spacer(),
-                TextButton.icon(
-                  onPressed: () {
-                    setState(() {
-                      if (allSelected) {
-                        selectedNotLoggedIn.clear();
-                      } else {
-                        selectedNotLoggedIn
-                          ..clear()
-                          ..addAll(
-                            filteredNotLoggedIn.map(
-                                  (u) => n(u["id"]).toInt(),
-                            ),
-                          );
-                      }
-                    });
-                  },
-                  icon: Icon(
-                    allSelected
-                        ? Icons.check_box
-                        : Icons.check_box_outline_blank,
-                  ),
-                  label: Text(
-                    allSelected ? "Deselect All" : "Select All",
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              headingRowColor: WidgetStateProperty.all(
-                const Color(0xfff8fafc),
               ),
-              columns: const [
-                DataColumn(label: Text("")),
-                DataColumn(label: Text("Employee")),
-                DataColumn(label: Text("Role")),
-                DataColumn(label: Text("Region")),
-                DataColumn(label: Text("Group")),
-                DataColumn(label: Text("Branch")),
-                DataColumn(label: Text("Phone")),
-                DataColumn(label: Text("Emp Code")),
-                DataColumn(label: Text("Last Login")),
-                DataColumn(label: Text("Action")),
-              ],
-              rows: filteredNotLoggedIn.map((r) {
-                final id = n(r["id"]).toInt();
+              TextButton.icon(
+                onPressed: () {
+                  setState(() {
+                    if (allSelected) {
+                      selectedNotLoggedIn.clear();
+                    } else {
+                      selectedNotLoggedIn
+                        ..clear()
+                        ..addAll(
+                          filteredNotLoggedIn.map(
+                                (u) => n(u["id"]).toInt(),
+                          ),
+                        );
+                    }
+                  });
+                },
+                icon: Icon(
+                  allSelected
+                      ? Icons.check_box
+                      : Icons.check_box_outline_blank,
+                  size: 18,
+                ),
+                label: Text(allSelected ? "Clear" : "All"),
+              ),
+            ],
+          ),
+        ),
 
-                return DataRow(
-                  color: WidgetStateProperty.all(
-                    selectedNotLoggedIn.contains(id)
-                        ? const Color(0xffeef2ff)
-                        : Colors.white,
+        const SizedBox(height: 8),
+
+        if (filteredNotLoggedIn.isEmpty)
+          _emptyCard("No employees found")
+        else
+          ...filteredNotLoggedIn.map((r) {
+            final id = n(r["id"]).toInt();
+            final selected = selectedNotLoggedIn.contains(id);
+
+            return Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 4,
+                vertical: 14,
+              ),
+              decoration: BoxDecoration(
+                color: selected ? const Color(0xffeef2ff) : Colors.transparent,
+                border: const Border(
+                  bottom: BorderSide(
+                    color: Color(0xffe2e8f0),
                   ),
-                  cells: [
-                    DataCell(
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Checkbox(
-                        value: selectedNotLoggedIn.contains(id),
+                        value: selected,
                         onChanged: (_) => setState(() {
-                          selectedNotLoggedIn.contains(id)
+                          selected
                               ? selectedNotLoggedIn.remove(id)
                               : selectedNotLoggedIn.add(id);
                         }),
                       ),
-                    ),
-                    DataCell(
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            "${r["name"] ?? r["user_name"] ?? "—"}",
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          Text(
-                            "${r["username"] ?? ""}",
-                            style: const TextStyle(
-                              fontSize: 10,
-                              color: Color(0xff94a3b8),
-                            ),
-                          ),
-                        ],
+                      const SizedBox(width: 4),
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: const Color(0xffffe4e6),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.person_off,
+                          color: Color(0xffdc2626),
+                          size: 19,
+                        ),
                       ),
-                    ),
-                    DataCell(
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "${r["name"] ?? r["user_name"] ?? "—"}",
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xff0f172a),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              "${r["username"] ?? ""}",
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Color(0xff64748b),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                       _badge(
                         "${r["role"] ?? ""}",
                         const Color(0xff64748b),
                       ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  _reportInfoRows([
+                    _infoPair("Region", "${r["region"] ?? "—"}"),
+                    _infoPair("Group", "${r["group"] ?? "—"}"),
+                    _infoPair("Branch", "${r["branch"] ?? "—"}"),
+                    _infoPair("Phone", "${r["phone"] ?? "—"}"),
+                    _infoPair("Emp Code", "${r["employee_code"] ?? "—"}"),
+                    _infoPair(
+                      "Last Login",
+                      r["last_login"] == null
+                          ? "Never logged in"
+                          : fmtDateTime(r["last_login"]),
                     ),
-                    DataCell(Text("${r["region"] ?? "—"}")),
-                    DataCell(Text("${r["group"] ?? "—"}")),
-                    DataCell(Text("${r["branch"] ?? "—"}")),
-                    DataCell(Text("${r["phone"] ?? "—"}")),
-                    DataCell(Text("${r["employee_code"] ?? "—"}")),
-                    DataCell(
-                      Text(
-                        r["last_login"] == null
-                            ? "Never logged in"
-                            : fmtDateTime(r["last_login"]),
-                      ),
+                  ]),
+
+                  const SizedBox(height: 12),
+
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: ElevatedButton.icon(
+                      onPressed: () => sendReminder([id]),
+                      icon: const Icon(Icons.mail, size: 14),
+                      label: const Text("Send Mail"),
                     ),
-                    DataCell(
-                      ElevatedButton.icon(
-                        onPressed: () => sendReminder([id]),
-                        icon: const Icon(Icons.mail, size: 12),
-                        label: const Text("Send Mail"),
-                      ),
-                    ),
-                  ],
-                );
-              }).toList(),
-            ),
-          ),
-        ],
-      ),
+                  ),
+                ],
+              ),
+            );
+          }),
+      ],
     );
   }
 

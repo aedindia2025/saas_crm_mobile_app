@@ -43,9 +43,7 @@ class _SplashScreenState extends State<SplashScreen>
 
     Timer(const Duration(seconds: 3), () {
       if (!mounted) return;
-
-
-      moveNextScreen();
+       moveNextScreen();
 
     });
   }
@@ -146,34 +144,20 @@ class _SplashScreenState extends State<SplashScreen>
                         scale: scaleAnimation,
                         child: Column(
                           children: [
+
                             Container(
-                              width: 118,
-                              height: 118,
+                              width: 108,
+                              height: 108,
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.14),
-                                borderRadius: BorderRadius.circular(32),
-                                border: Border.all(
-                                  color: Colors.white.withOpacity(0.28),
-                                  width: 1.2,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.22),
-                                    blurRadius: 34,
-                                    offset: const Offset(0, 16),
-                                  ),
-                                ],
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(30),
                               ),
-                              child: Container(
-                                margin: const EdgeInsets.all(18),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.16),
-                                  borderRadius: BorderRadius.circular(22),
-                                ),
-                                child: const Icon(
-                                  Icons.business_center_rounded,
-                                  size: 52,
-                                  color: Colors.white,
+                              child: Padding(
+                                padding: const EdgeInsets.all(13),
+                                child: Image.asset(
+                                  "assets/images/Azcentrix_splash.png",
+                                  fit: BoxFit.contain,
+
                                 ),
                               ),
                             ),
@@ -181,7 +165,7 @@ class _SplashScreenState extends State<SplashScreen>
                             const SizedBox(height: 30),
                 
                             const Text(
-                              'DigitCRM',
+                              'Azcentrix Connect',
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 36,
@@ -201,6 +185,7 @@ class _SplashScreenState extends State<SplashScreen>
                                 letterSpacing: 0.5,
                               ),
                             ),
+
                           ],
                         ),
                       ),

@@ -130,6 +130,7 @@ class _PlanYourDayPageState extends State<PlanYourDayPage> {
       }).toList();
 
       final uri = Uri.parse("${widget.baseUrl}/api/v1/kam/activities/bulk");
+
       final response = await http.post(
         uri,
         headers: headers,
@@ -142,6 +143,7 @@ class _PlanYourDayPageState extends State<PlanYourDayPage> {
       debugPrint("PLAN DAY STATUS => ${response.statusCode}");
       debugPrint("PLAN DAY RESPONSE => $data");
 
+      if (!mounted) return;
       setState(() => isSaving = false);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
@@ -156,6 +158,7 @@ class _PlanYourDayPageState extends State<PlanYourDayPage> {
         showError(data?['message'] ?? "Unknown Error");
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() => isSaving = false);
       showError(e.toString());
     }
@@ -326,15 +329,12 @@ class _PlanYourDayPageState extends State<PlanYourDayPage> {
               ),
             ],
           ),
-
           Wrap(
             spacing: 6,
             runSpacing: 6,
             children: activityTypes.map((e) => typeButton(row, e)).toList(),
           ),
-
           const SizedBox(height: 14),
-
           DropdownButtonFormField<int>(
             value: row.customerId,
             isExpanded: true,
@@ -363,16 +363,12 @@ class _PlanYourDayPageState extends State<PlanYourDayPage> {
               });
             },
           ),
-
           const SizedBox(height: 12),
-
           TextFormField(
             controller: row.subjectController,
             decoration: inputDecoration(hint: "Subject / purpose *"),
           ),
-
           const SizedBox(height: 12),
-
           DropdownButtonFormField<int?>(
             value: row.onBehalfOf,
             isExpanded: true,
@@ -491,19 +487,29 @@ class _PlanYourDayPageState extends State<PlanYourDayPage> {
                 ),
               ),
               const SizedBox(width: 8),
-              ElevatedButton(
-                onPressed: applyAssignToAll,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xffEFF6FF),
-                  foregroundColor: const Color(0xff2563EB),
-                  elevation: 0,
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+
+              /// FIXED: finite width for Apply button.
+              SizedBox(
+                width: 82,
+                height: 44,
+                child: ElevatedButton(
+                  onPressed: applyAssignToAll,
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(0, 0),
+                    backgroundColor: const Color(0xffEFF6FF),
+                    foregroundColor: const Color(0xff2563EB),
+                    elevation: 0,
+                    padding: EdgeInsets.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: const Text(
+                    "Apply",
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                child: const Text("Apply"),
               ),
             ],
           ),
@@ -571,16 +577,21 @@ class _PlanYourDayPageState extends State<PlanYourDayPage> {
                 headerCard(),
                 const SizedBox(height: 16),
                 ...List.generate(rows.length, planRow),
-                OutlinedButton.icon(
-                  onPressed: addRow,
-                  icon: const Icon(Icons.add),
-                  label: const Text("Add Another Activity"),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    foregroundColor: const Color(0xff64748B),
-                    side: const BorderSide(color: Color(0xffCBD5E1)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: addRow,
+                    icon: const Icon(Icons.add),
+                    label: const Text("Add Another Activity"),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(0, 46),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      foregroundColor: const Color(0xff64748B),
+                      side: const BorderSide(color: Color(0xffCBD5E1)),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                     ),
                   ),
                 ),
@@ -610,39 +621,58 @@ class _PlanYourDayPageState extends State<PlanYourDayPage> {
                       fontWeight: FontWeight.w800,
                       fontSize: 12,
                     ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                OutlinedButton(
-                  onPressed: isSaving ? null : () => Navigator.pop(context),
-                  child: const Text("Cancel"),
+                const SizedBox(width: 8),
+
+                /// FIXED: finite-width Cancel button.
+                SizedBox(
+                  height: 42,
+                  child: OutlinedButton(
+                    onPressed: isSaving ? null : () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(0, 0),
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Text("Cancel"),
+                  ),
                 ),
                 const SizedBox(width: 10),
-                ElevatedButton.icon(
-                  onPressed: isSaving ? null : savePlan,
-                  icon: isSaving
-                      ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                      : const Icon(Icons.calendar_month, size: 17),
-                  label: Text(
-                    validRows.length > 1
-                        ? "Plan ${validRows.length} Activities"
-                        : "Plan Activity",
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xff0F172A),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 13,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+
+                /// FIXED: finite available width using Flexible.
+                Flexible(
+                  child: SizedBox(
+                    height: 42,
+                    child: ElevatedButton.icon(
+                      onPressed: isSaving ? null : savePlan,
+                      icon: isSaving
+                          ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                          : const Icon(Icons.calendar_month, size: 17),
+                      label: Text(
+                        validRows.length > 1
+                            ? "Plan ${validRows.length} Activities"
+                            : "Plan Activity",
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(0, 0),
+                        backgroundColor: const Color(0xff0F172A),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
                     ),
                   ),
                 ),

@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -7,13 +5,11 @@ import '../../api_helpers/api_method.dart';
 import '../../api_helpers/api_urls.dart';
 import 'approval_detail_page.dart';
 
-class AppColors {
+class ApprovalUiColors {
   static const Color primaryDark = Color(0xFF103050);
   static const Color primaryDeep = Color(0xFF102040);
   static const Color primaryMedium = Color(0xFF204070);
-  static const Color primarySlate = Color(0xFF304050);
   static const Color primaryLight = Color(0xFF3060A0);
-
   static const Color bg = Color(0xffF4F7FB);
   static const Color card = Colors.white;
   static const Color border = Color(0xffE2E8F0);
@@ -21,39 +17,33 @@ class AppColors {
   static const Color textSoft = Color(0xff64748B);
 
   static const LinearGradient headerGradient = LinearGradient(
-    colors: [
-      Color(0xFF3060A0),
-      Color(0xFF3060A0),
-      Color(0xFF204070),
-      Color(0xFF103050),
-      Color(0xFF102040),
-    ],
+    colors: [primaryLight, primaryMedium, primaryDark, primaryDeep],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 }
 
-String safeText(dynamic value, [String fallback = "-"]) {
-  final text = value?.toString().trim() ?? "";
-  return text.isEmpty ? fallback : text;
+String safeText(dynamic value, [String fallback = '-']) {
+  final text = value?.toString().trim() ?? '';
+  return text.isEmpty || text.toLowerCase() == 'null' ? fallback : text;
 }
 
 String fmtDate(dynamic value) {
-  final text = safeText(value, "");
-  if (text.isEmpty) return "-";
+  final text = safeText(value, '');
+  if (text.isEmpty) return '-';
   try {
     final dt = DateTime.parse(text);
-    return "${dt.day.toString().padLeft(2, '0')}-${dt.month.toString().padLeft(2, '0')}-${dt.year}";
+    return '${dt.day.toString().padLeft(2, '0')}-${dt.month.toString().padLeft(2, '0')}-${dt.year}';
   } catch (_) {
-    return text.contains("T") ? text.split("T").first : text.split(" ").first;
+    return text.contains('T') ? text.split('T').first : text.split(' ').first;
   }
 }
 
 String money(dynamic value) {
-  if (value == null || value.toString().trim().isEmpty) return "-";
+  if (value == null || value.toString().trim().isEmpty) return '-';
   final n = num.tryParse(value.toString());
   if (n == null) return value.toString();
-  return "₹${n.toStringAsFixed(0)}";
+  return '₹${n.toStringAsFixed(0)}';
 }
 
 class ApprovalsPage extends StatefulWidget {
@@ -65,7 +55,11 @@ class ApprovalsPage extends StatefulWidget {
 
 class _ApprovalsPageState extends State<ApprovalsPage>
     with SingleTickerProviderStateMixin {
-  late TabController tabController;
+  late final TabController tabController;
+
+  int pendingVisibleCount = 10;
+  int historyVisibleCount = 10;
+  final int pageLimit = 10;
 
   bool loadingPending = true;
   bool loadingHistory = true;
@@ -74,32 +68,55 @@ class _ApprovalsPageState extends State<ApprovalsPage>
   List<Map<String, dynamic>> pending = [];
   List<Map<String, dynamic>> history = [];
 
-  String token = "";
-  String tenantSlug = "";
+  String token = '';
+  String tenantSlug = '';
 
-  String get  apiBase => "${ApiUrls.baseUrl}/api/v1";
+  String get apiBase => '${ApiUrls.baseUrl}/api/v1';
 
   Map<String, String> get headers => {
-    "Authorization": "Bearer $token",
-    "Accept": "application/json",
-    "Content-Type": "application/json",
-    "X-Tenant-Slug": tenantSlug,
+    'Authorization': 'Bearer $token',
+    'Accept': 'application/json',
+    'Content-Type': 'application/json',
+    if (tenantSlug.isNotEmpty) 'X-Tenant-Slug': tenantSlug,
   };
 
   @override
   void initState() {
     super.initState();
     tabController = TabController(length: 2, vsync: this);
-    loadToken();
+    loadTokenAndData();
   }
 
-  Future<void> loadToken() async {
+  void loadMorePendingFromLocal() {
+    if (pendingVisibleCount >= pending.length) return;
+
+    setState(() {
+      final nextCount = pendingVisibleCount + pageLimit;
+      pendingVisibleCount =
+      nextCount > pending.length ? pending.length : nextCount;
+    });
+  }
+
+  void loadMoreHistoryFromLocal() {
+    if (historyVisibleCount >= history.length) return;
+
+    setState(() {
+      final nextCount = historyVisibleCount + pageLimit;
+      historyVisibleCount =
+      nextCount > history.length ? history.length : nextCount;
+    });
+  }
+
+  Future<void> loadTokenAndData() async {
     final prefs = await SharedPreferences.getInstance();
-    token = prefs.getString("auth_token") ?? "";
-    tenantSlug = prefs.getString("tenant_slug") ?? "";
+    token = prefs.getString('auth_token') ??
+        prefs.getString('access_token') ??
+        prefs.getString('token') ??
+        '';
+    tenantSlug = prefs.getString('tenant_slug') ?? '';
 
     if (token.isEmpty) {
-      showError("Token not found");
+      showError('Token not found');
       if (mounted) {
         setState(() {
           loadingPending = false;
@@ -109,77 +126,88 @@ class _ApprovalsPageState extends State<ApprovalsPage>
       return;
     }
 
-    await Future.wait([
-      loadPending(),
-      loadHistory(),
-    ]);
+    await Future.wait([loadPending(), loadHistory()]);
+  }
+
+  List<Map<String, dynamic>> _itemsFrom(dynamic responseData, String kind) {
+    final dynamic raw = responseData is Map && responseData['items'] is List
+        ? responseData['items']
+        : responseData;
+
+    if (raw is! List) return [];
+
+    return raw
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e)..['kind'] = kind)
+        .toList();
   }
 
   Future<void> loadPending({bool silent = false}) async {
-    if (mounted && !silent) setState(() => loadingPending = true);
-    if (mounted && silent) setState(() => refreshing = true);
+    if (!mounted) return;
+
+    setState(() {
+      if (silent) {
+        refreshing = true;
+      } else {
+        loadingPending = true;
+      }
+    });
 
     try {
       final results = await Future.wait([
         ApiMethod.getRequest(
-          url: "$apiBase/approvals/pending",
+          url: '$apiBase/approvals/pending',
           headers: headers,
         ),
         ApiMethod.getRequest(
-          url: "$apiBase/approval-workflows/requests/pending",
+          url: '$apiBase/approval-workflows/requests/pending',
           headers: headers,
         ),
       ]);
 
       final legacyRes = results[0];
       final dynamicRes = results[1];
-
-      List<Map<String, dynamic>> legacyItems = [];
-      List<Map<String, dynamic>> dynamicItems = [];
+      final rows = <Map<String, dynamic>>[];
 
       if (legacyRes['statusCode'] == 200) {
-        final data = legacyRes['data'];
-        legacyItems = data is Map && data["items"] is List
-            ? List<Map<String, dynamic>>.from(data["items"])
-            : data is List
-            ? List<Map<String, dynamic>>.from(data)
-            : [];
-        legacyItems = legacyItems.map((e) => {...e, "kind": "legacy"}).toList();
+        rows.addAll(_itemsFrom(legacyRes['data'], 'legacy'));
       }
 
       if (dynamicRes['statusCode'] == 200) {
-        final data = dynamicRes['data'];
-        dynamicItems = data is Map && data["items"] is List
-            ? List<Map<String, dynamic>>.from(data["items"])
-            : data is List
-            ? List<Map<String, dynamic>>.from(data)
-            : [];
-        dynamicItems = dynamicItems.map((e) => {...e, "kind": "dynamic"}).toList();
+        rows.addAll(_itemsFrom(dynamicRes['data'], 'dynamic'));
       }
 
-      final rows = [...legacyItems, ...dynamicItems];
+      if (legacyRes['statusCode'] != 200 && dynamicRes['statusCode'] != 200) {
+        showError('Failed to load pending approvals');
+      }
 
-      rows.sort((a, b) {
-        final da = DateTime.tryParse(safeText(a["created_at"], "")) ??
-            DateTime.fromMillisecondsSinceEpoch(0);
-        final db = DateTime.tryParse(safeText(b["created_at"], "")) ??
-            DateTime.fromMillisecondsSinceEpoch(0);
-        return db.compareTo(da);
-      });
+      rows.sort(
+            (a, b) => _dateOf(
+          b,
+          ['created_at', 'requested_at'],
+        ).compareTo(
+          _dateOf(
+            a,
+            ['created_at', 'requested_at'],
+          ),
+        ),
+      );
 
-      if (mounted) setState(() => pending = rows);
-
-      debugPrint("LEGACY PENDING: ${legacyRes['statusCode']} ${legacyRes['data']}");
-      debugPrint("DYNAMIC PENDING: ${dynamicRes['statusCode']} ${dynamicRes['data']}");
+      if (mounted) {
+        setState(() {
+          pending = rows;
+          pendingVisibleCount = 10;
+        });
+      }
     } catch (e) {
-      showError("Pending approvals error: $e");
-    }
-
-    if (mounted) {
-      setState(() {
-        loadingPending = false;
-        refreshing = false;
-      });
+      showError('Pending approvals error: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          loadingPending = false;
+          refreshing = false;
+        });
+      }
     }
   }
 
@@ -189,91 +217,66 @@ class _ApprovalsPageState extends State<ApprovalsPage>
     try {
       final results = await Future.wait([
         ApiMethod.getRequest(
-          url: "$apiBase/approvals/history?page=1&per_page=50",
+          url: '$apiBase/approvals/history?page=1&per_page=100',
           headers: headers,
         ),
         ApiMethod.getRequest(
-          url: "$apiBase/approval-workflows/requests/history?page=1&per_page=50",
+          url: '$apiBase/approval-workflows/requests/history?page=1&per_page=100',
           headers: headers,
         ),
       ]);
 
       final legacyRes = results[0];
       final dynamicRes = results[1];
-
-      List<Map<String, dynamic>> legacyItems = [];
-      List<Map<String, dynamic>> dynamicItems = [];
+      final rows = <Map<String, dynamic>>[];
 
       if (legacyRes['statusCode'] == 200) {
-        final data = legacyRes['data'];
-
-        legacyItems = data is Map && data["items"] is List
-            ? List<Map<String, dynamic>>.from(data["items"])
-            : data is List
-            ? List<Map<String, dynamic>>.from(data)
-            : <Map<String, dynamic>>[];
-
-        legacyItems = legacyItems
-            .map((item) => {
-          ...item,
-          "kind": "legacy",
-        })
-            .toList();
+        rows.addAll(_itemsFrom(legacyRes['data'], 'legacy'));
       }
 
       if (dynamicRes['statusCode'] == 200) {
-        final data = dynamicRes['data'];
-
-        dynamicItems = data is Map && data["items"] is List
-            ? List<Map<String, dynamic>>.from(data["items"])
-            : data is List
-            ? List<Map<String, dynamic>>.from(data)
-            : <Map<String, dynamic>>[];
-
-        dynamicItems = dynamicItems
-            .map((item) => {
-          ...item,
-          "kind": "dynamic",
-        })
-            .toList();
+        rows.addAll(_itemsFrom(dynamicRes['data'], 'dynamic'));
       }
 
       if (legacyRes['statusCode'] != 200 && dynamicRes['statusCode'] != 200) {
-        showError("Failed to load approval history");
+        showError('Failed to load approval history');
       }
 
-      final rows = [...legacyItems, ...dynamicItems];
+      rows.sort(
+            (a, b) => _dateOf(
+          b,
+          ['decided_at', 'updated_at', 'created_at', 'requested_at'],
+        ).compareTo(
+          _dateOf(
+            a,
+            ['decided_at', 'updated_at', 'created_at', 'requested_at'],
+          ),
+        ),
+      );
 
-      rows.sort((a, b) {
-        final da = DateTime.tryParse(
-          safeText(a["decided_at"] ?? a["updated_at"] ?? a["created_at"], ""),
-        ) ??
-            DateTime.fromMillisecondsSinceEpoch(0);
-
-        final db = DateTime.tryParse(
-          safeText(b["decided_at"] ?? b["updated_at"] ?? b["created_at"], ""),
-        ) ??
-            DateTime.fromMillisecondsSinceEpoch(0);
-
-        return db.compareTo(da);
-      });
-
-      if (mounted) setState(() => history = rows);
-
-      debugPrint("LEGACY HISTORY: ${legacyRes['statusCode']} ${legacyRes['data']}");
-      debugPrint("DYNAMIC HISTORY: ${dynamicRes['statusCode']} ${dynamicRes['data']}");
+      if (mounted) {
+        setState(() {
+          history = rows;
+          historyVisibleCount = 10;
+        });
+      }
     } catch (e) {
-      showError("History loading error: $e");
+      showError('History loading error: $e');
+    } finally {
+      if (mounted) setState(() => loadingHistory = false);
     }
+  }
 
-    if (mounted) setState(() => loadingHistory = false);
+  DateTime _dateOf(Map<String, dynamic> item, List<String> keys) {
+    for (final key in keys) {
+      final parsed = DateTime.tryParse(safeText(item[key], ''));
+      if (parsed != null) return parsed;
+    }
+    return DateTime.fromMillisecondsSinceEpoch(0);
   }
 
   Future<void> refreshAll() async {
-    await Future.wait([
-      loadPending(silent: true),
-      loadHistory(),
-    ]);
+    await Future.wait([loadPending(silent: true), loadHistory()]);
   }
 
   void openApproval(Map<String, dynamic> approval) {
@@ -289,117 +292,122 @@ class _ApprovalsPageState extends State<ApprovalsPage>
     ).then((_) => refreshAll());
   }
 
-  void showSuccess(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(backgroundColor: Colors.green, content: Text(message)),
-    );
-  }
-
   void showError(String message) {
     if (!mounted) return;
+
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(backgroundColor: Colors.red, content: Text(message)),
+      SnackBar(
+        backgroundColor: Colors.red.shade700,
+        content: Text(message),
+      ),
     );
   }
 
-  Map<String, List<Map<String, dynamic>>> groupPending() {
-    final grouped = <String, List<Map<String, dynamic>>>{};
+  String approvalTypeLabel(
+      Map<String, dynamic> item, {
+        bool group = false,
+      }) {
+    final action = safeText(item['action'], '');
+    final actionLabel = safeText(item['action_label'], '');
+    final typeLabel = safeText(item['type_label'], '');
 
-    for (final item in pending) {
-      final module = safeText(item["module"], "").toLowerCase();
+    if (typeLabel != '-') return typeLabel;
 
-      final key = module == "customer"
-          ? "Customers"
-          : module == "tender"
-          ? "Tenders"
-          : module == "lead"
-          ? "Leads"
-          : module == "travel"
-          ? "Travel Requests"
-          : module == "tada"
-          ? "TA/DA Claims"
-          : module == "emdbg"
-          ? "EMD / BG"
-          : "Others";
+    const full = {
+      'tender_step1_manager': 'Tender Basic Info Approval (Manager)',
+      'tender_step1_ceo': 'Tender Basic Info Approval (CEO)',
+      'tender_step2_manager': 'Tender Details Approval (Manager)',
+      'tender_step2_ceo': 'Tender Details Approval (CEO)',
+      'tender_step3_manager': 'Tender Workings Approval (Manager)',
+      'tender_step3_ceo': 'Tender Workings Approval (CEO)',
+      'tender_po_manager': 'Tender PO Details Approval (Manager)',
+      'convert': 'Lead Conversion Approval',
+      'convert_lead_manager': 'Lead Conversion Approval',
+      'request': 'Travel Request Approval',
+      'expense': 'TA/DA Expense Claim (Manager)',
+      'expense_ceo': 'TA/DA Expense Claim (CEO)',
+      'release_request': 'EMD/BG Release Approval',
+      'submit': 'Quotation Approval',
+      'create': 'Customer Creation Approval',
+    };
 
-      grouped.putIfAbsent(key, () => []);
-      grouped[key]!.add(item);
-    }
+    const short = {
+      'tender_step1_manager': 'Basic Info · Manager',
+      'tender_step1_ceo': 'Basic Info · CEO',
+      'tender_step2_manager': 'Tender Details · Manager',
+      'tender_step2_ceo': 'Tender Details · CEO',
+      'tender_step3_manager': 'Workings · Manager',
+      'tender_step3_ceo': 'Workings · CEO',
+      'tender_po_manager': 'PO Details · Manager',
+      'convert': 'Lead Conversion',
+      'convert_lead_manager': 'Lead Conversion',
+      'request': 'Travel Request',
+      'expense': 'Expense · Manager',
+      'expense_ceo': 'Expense · CEO',
+      'release_request': 'Release Approval',
+      'submit': 'Quotation',
+      'create': 'Customer Approval',
+    };
 
-    return grouped;
+    return (group ? short[action] : full[action]) ??
+        (actionLabel == '-' ? action : actionLabel);
   }
 
   Color statusColor(String status) {
     switch (status.toLowerCase()) {
-      case "approved":
+      case 'approved':
         return const Color(0xff059669);
-      case "rejected":
+      case 'rejected':
         return const Color(0xffDC2626);
-      case "pending":
+      case 'pending':
         return const Color(0xffD97706);
       default:
-        return const Color(0xff64748B);
+        return ApprovalUiColors.textSoft;
     }
   }
 
   IconData moduleIcon(String module) {
     switch (module.toLowerCase()) {
-      case "customer":
-      case "customers":
+      case 'customer':
+      case 'customers':
         return Icons.business_outlined;
-      case "lead":
-      case "leads":
+      case 'lead':
+      case 'leads':
         return Icons.trending_up;
-      case "tender":
-      case "tenders":
+      case 'tender':
+      case 'tenders':
         return Icons.description_outlined;
-      case "travel":
+      case 'travel':
         return Icons.flight_takeoff;
-      case "tada":
+      case 'tada':
         return Icons.receipt_long;
-      case "emdbg":
+      case 'emdbg':
         return Icons.account_balance_wallet_outlined;
+      case 'quotation':
+        return Icons.request_quote_outlined;
       default:
         return Icons.approval_outlined;
     }
   }
 
-  Color moduleSoftColor(String module) {
+  Color moduleColor(String module) {
     switch (module.toLowerCase()) {
-      case "customer":
-        return const Color(0xffE0F2FE);
-      case "lead":
-        return const Color(0xffF3E8FF);
-      case "tender":
-        return const Color(0xffFFEDD5);
-      case "travel":
-        return const Color(0xffDBEAFE);
-      case "tada":
-        return const Color(0xffE0E7FF);
-      case "emdbg":
-        return const Color(0xffCCFBF1);
-      default:
-        return const Color(0xffEEF2FF);
-    }
-  }
-
-  Color moduleIconColor(String module) {
-    switch (module.toLowerCase()) {
-      case "customer":
+      case 'customer':
         return const Color(0xff0284C7);
-      case "lead":
+      case 'lead':
         return const Color(0xff7C3AED);
-      case "tender":
+      case 'tender':
         return const Color(0xffEA580C);
-      case "travel":
+      case 'travel':
         return const Color(0xff2563EB);
-      case "tada":
+      case 'tada':
         return const Color(0xff4F46E5);
-      case "emdbg":
+      case 'emdbg':
         return const Color(0xff0F766E);
+      case 'quotation':
+        return const Color(0xff059669);
       default:
-        return AppColors.primaryLight;
+        return ApprovalUiColors.primaryLight;
     }
   }
 
@@ -424,76 +432,41 @@ class _ApprovalsPageState extends State<ApprovalsPage>
     );
   }
 
-  String approvalTypeLabel(Map<String, dynamic> item, {bool group = false}) {
-    final action = safeText(item["action"], "");
-    final actionLabel = safeText(item["action_label"], "");
-    final typeLabel = safeText(item["type_label"], "");
-
-    if (typeLabel != "-") return typeLabel;
-
-    const full = {
-      "tender_step1_manager": "Tender Basic Info Approval (Manager)",
-      "tender_step1_ceo": "Tender Basic Info Approval (CEO)",
-      "tender_step2_manager": "Tender Details Approval (Manager)",
-      "tender_step2_ceo": "Tender Details Approval (CEO)",
-      "tender_step3_manager": "Tender Workings Approval (Manager)",
-      "tender_step3_ceo": "Tender Workings Approval (CEO)",
-      "tender_po_manager": "Tender PO Details Approval (Manager)",
-      "convert": "Lead Conversion Approval",
-      "convert_lead_manager": "Lead Conversion Approval",
-      "request": "Travel Request Approval",
-      "expense": "TA/DA Expense Claim (Manager)",
-      "expense_ceo": "TA/DA Expense Claim (CEO)",
-      "release_request": "EMD/BG Release Approval",
-      "create": "Customer Creation Approval",
-    };
-
-    const short = {
-      "tender_step1_manager": "Basic Info Approval · Manager",
-      "tender_step1_ceo": "Basic Info Approval · CEO",
-      "tender_step2_manager": "Tender Details · Manager",
-      "tender_step2_ceo": "Tender Details · CEO",
-      "tender_step3_manager": "Workings Approval · Manager",
-      "tender_step3_ceo": "Workings Approval · CEO",
-      "tender_po_manager": "PO Details Approval · Manager",
-      "convert": "Lead Conversion Approval",
-      "convert_lead_manager": "Lead Conversion Approval",
-      "request": "Travel Request Approval",
-      "expense": "Expense Claim · Manager",
-      "expense_ceo": "Expense Claim · CEO",
-      "release_request": "Release Approval",
-      "create": "Customer Approval",
-    };
-
-    return group
-        ? short[action] ?? (actionLabel == "-" ? action : actionLabel)
-        : full[action] ?? (actionLabel == "-" ? action : actionLabel);
-  }
-
   Widget approvalCard(
       Map<String, dynamic> item, {
         required bool historyMode,
         bool inGroup = false,
       }) {
-    final module = safeText(item["module"], "");
-    final status = safeText(item["status"], "pending");
-    final summary = item["summary"] is Map ? item["summary"] as Map : {};
+    final module = safeText(item['module'], '');
+    final status = safeText(item['status'], 'pending');
+
+    final summary = item['summary'] is Map
+        ? Map<String, dynamic>.from(item['summary'])
+        : <String, dynamic>{};
+
+    final ref = safeText(item['record_ref'], '-');
+    final requester = safeText(item['requested_by_name'], '-');
 
     final customerName = safeText(
-      summary["company_name"] ??
-          summary["customer_name"] ??
-          summary["employee_name"] ??
-          summary["client_name"],
-      "",
+      summary['customer_name'] ??
+          summary['company_name'] ??
+          summary['employee_name'] ??
+          summary['client_name'],
+      '',
     );
 
     final purpose = safeText(
-      summary["purpose"] ?? summary["title"] ?? summary["lead_title"],
-      "",
+      summary['purpose'] ??
+          summary['title'] ??
+          summary['lead_title'] ??
+          summary['subject'] ??
+          summary['instrument_type'],
+      '',
     );
 
-    final requester = safeText(item["requested_by_name"], "-");
-    final ref = safeText(item["record_ref"], "-");
+    final displayStatus = safeText(item['approval_display'], status);
+    final currentStep = item['approval_progress_current'] ?? item['current_step_no'];
+    final totalStep = item['approval_progress_total'];
 
     return InkWell(
       borderRadius: BorderRadius.circular(20),
@@ -504,7 +477,7 @@ class _ApprovalsPageState extends State<ApprovalsPage>
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: ApprovalUiColors.border),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(.035),
@@ -520,36 +493,39 @@ class _ApprovalsPageState extends State<ApprovalsPage>
               width: 43,
               height: 43,
               decoration: BoxDecoration(
-                color: moduleSoftColor(module),
+                color: moduleColor(module).withOpacity(.10),
                 borderRadius: BorderRadius.circular(15),
-                border: Border.all(color: moduleIconColor(module).withOpacity(.12)),
+                border: Border.all(
+                  color: moduleColor(module).withOpacity(.13),
+                ),
               ),
               child: Icon(
                 moduleIcon(module),
-                color: moduleIconColor(module),
+                color: moduleColor(module),
                 size: 20,
               ),
             ),
             const SizedBox(width: 12),
-
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xffF8FAFC),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.border),
+                      border: Border.all(color: ApprovalUiColors.border),
                     ),
                     child: Text(
                       approvalTypeLabel(item, group: inGroup),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: AppColors.primaryDark,
+                        color: ApprovalUiColors.primaryDark,
                         fontWeight: FontWeight.w900,
                         fontSize: 10.5,
                       ),
@@ -561,68 +537,31 @@ class _ApprovalsPageState extends State<ApprovalsPage>
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      color: AppColors.textDark,
+                      color: ApprovalUiColors.textDark,
                       fontWeight: FontWeight.w900,
                       fontSize: 14.5,
                     ),
                   ),
-                  if (customerName.isNotEmpty) ...[
-                    const SizedBox(height: 5),
-                    Row(
-                      children: [
-                        const Icon(Icons.business_outlined,
-                            size: 12, color: AppColors.textSoft),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            customerName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: AppColors.textDark,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                  if (purpose.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(Icons.local_offer_outlined,
-                            size: 11, color: AppColors.textSoft),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            purpose,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: AppColors.textSoft,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                  if (customerName.isNotEmpty)
+                    _miniLine(Icons.business_outlined, customerName),
+                  if (purpose.isNotEmpty)
+                    _miniLine(Icons.local_offer_outlined, purpose),
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      const Icon(Icons.person_outline,
-                          size: 12, color: AppColors.textSoft),
+                      const Icon(
+                        Icons.person_outline,
+                        size: 12,
+                        color: ApprovalUiColors.textSoft,
+                      ),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
-                          "$requester · ${fmtDate(item["created_at"])}",
+                          '$requester · ${fmtDate(item['created_at'] ?? item['requested_at'])}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            color: AppColors.textSoft,
+                            color: ApprovalUiColors.textSoft,
                             fontSize: 11.5,
                             fontWeight: FontWeight.w600,
                           ),
@@ -630,19 +569,29 @@ class _ApprovalsPageState extends State<ApprovalsPage>
                       ),
                     ],
                   ),
+                  if (currentStep != null && totalStep != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      'Step $currentStep of $totalStep',
+                      style: const TextStyle(
+                        color: ApprovalUiColors.primaryLight,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
-
             const SizedBox(width: 8),
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                statusChip(safeText(item["approval_display"], status)),
+                statusChip(displayStatus),
                 const SizedBox(height: 10),
                 Icon(
                   Icons.chevron_right,
-                  color: AppColors.textSoft.withOpacity(.45),
+                  color: ApprovalUiColors.textSoft.withOpacity(.45),
                   size: 21,
                 ),
               ],
@@ -653,6 +602,56 @@ class _ApprovalsPageState extends State<ApprovalsPage>
     );
   }
 
+  Widget _miniLine(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Row(
+        children: [
+          Icon(
+            icon,
+            size: 11,
+            color: ApprovalUiColors.textSoft,
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: ApprovalUiColors.textSoft,
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String groupKeyForApproval(Map<String, dynamic> item) {
+    final module = safeText(item['module'], '').toLowerCase();
+
+    if (module == 'customer' || module == 'customers') {
+      return 'Customers';
+    } else if (module == 'tender' || module == 'tenders') {
+      return 'Tenders';
+    } else if (module == 'lead' || module == 'leads') {
+      return 'Leads';
+    } else if (module == 'travel') {
+      return 'Travel Requests';
+    } else if (module == 'tada') {
+      return 'TA/DA Claims';
+    } else if (module == 'emdbg') {
+      return 'EMD / BG';
+    } else if (module == 'quotation') {
+      return 'Quotations';
+    } else {
+      return 'Others';
+    }
+  }
+
   Widget groupedPendingList() {
     if (loadingPending) {
       return const Center(child: CircularProgressIndicator());
@@ -660,72 +659,113 @@ class _ApprovalsPageState extends State<ApprovalsPage>
 
     if (pending.isEmpty) {
       return emptyState(
-        title: "All caught up!",
-        subtitle: "No pending approvals.",
+        title: 'All caught up!',
+        subtitle: 'No pending approvals.',
         icon: Icons.check_circle_outline,
         color: const Color(0xff10B981),
       );
     }
 
-    final groups = groupPending();
+    final visiblePending = pending.take(pendingVisibleCount).toList();
 
-    return RefreshIndicator(
-      onRefresh: () => loadPending(),
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
-        children: groups.entries.map((entry) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(4, 5, 4, 10),
-                child: Row(
-                  children: [
-                    Text(
-                      entry.key.toUpperCase(),
-                      style: const TextStyle(
-                        color: AppColors.textSoft,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 11,
-                        letterSpacing: .7,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    const Expanded(
-                      child: Divider(color: AppColors.border, height: 1),
-                    ),
-                    const SizedBox(width: 10),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 9, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xffEEF2FF),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        "${entry.value.length}",
-                        style: const TextStyle(
-                          color: AppColors.primaryLight,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w900,
+    final grouped = <String, List<Map<String, dynamic>>>{};
+
+    for (final item in visiblePending) {
+      final key = groupKeyForApproval(item);
+      grouped.putIfAbsent(key, () => []);
+      grouped[key]!.add(item);
+    }
+
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notification) {
+        if (notification.metrics.pixels >=
+            notification.metrics.maxScrollExtent - 250) {
+          loadMorePendingFromLocal();
+        }
+        return false;
+      },
+      child: RefreshIndicator(
+        onRefresh: () => loadPending(),
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          children: [
+            ...grouped.entries.map((entry) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(4, 5, 4, 10),
+                    child: Row(
+                      children: [
+                        Text(
+                          entry.key.toUpperCase(),
+                          style: const TextStyle(
+                            color: ApprovalUiColors.textSoft,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 11,
+                            letterSpacing: .7,
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 10),
+                        const Expanded(
+                          child: Divider(
+                            color: ApprovalUiColors.border,
+                            height: 1,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xffEEF2FF),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            '${entry.value.length}',
+                            style: const TextStyle(
+                              color: ApprovalUiColors.primaryLight,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
+                  ...entry.value.map(
+                        (item) => approvalCard(
+                      item,
+                      historyMode: false,
+                      inGroup: true,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+              );
+            }),
+
+            if (pendingVisibleCount < pending.length)
+              const Padding(
+                padding: EdgeInsets.fromLTRB(14, 8, 14, 30),
+                child: Center(
+                  child: SizedBox(
+                    height: 22,
+                    width: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: ApprovalUiColors.primaryLight,
+                    ),
+                  ),
                 ),
-              ),
-              ...entry.value.map(
-                    (item) => approvalCard(
-                  item,
-                  historyMode: false,
-                  inGroup: true,
-                ),
-              ),
-              const SizedBox(height: 10),
-            ],
-          );
-        }).toList(),
+              )
+            else
+              const SizedBox(height: 30),
+          ],
+        ),
       ),
     );
   }
@@ -737,25 +777,53 @@ class _ApprovalsPageState extends State<ApprovalsPage>
 
     if (history.isEmpty) {
       return emptyState(
-        title: "No approval history yet",
-        subtitle: "Approved and rejected requests will appear here.",
+        title: 'No approval history yet',
+        subtitle: 'Approved and rejected requests will appear here.',
         icon: Icons.history,
-        color: AppColors.textSoft,
+        color: ApprovalUiColors.textSoft,
       );
     }
 
-    return RefreshIndicator(
-      onRefresh: loadHistory,
-      child: ListView.builder(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
-        itemCount: history.length,
-        itemBuilder: (_, index) {
-          return approvalCard(
-            history[index],
-            historyMode: true,
-          );
-        },
+    final visibleHistory = history.take(historyVisibleCount).toList();
+
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notification) {
+        if (notification.metrics.pixels >=
+            notification.metrics.maxScrollExtent - 250) {
+          loadMoreHistoryFromLocal();
+        }
+        return false;
+      },
+      child: RefreshIndicator(
+        onRefresh: loadHistory,
+        child: ListView.builder(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          itemCount: visibleHistory.length +
+              (historyVisibleCount < history.length ? 1 : 0),
+          itemBuilder: (_, index) {
+            if (index == visibleHistory.length) {
+              return const Padding(
+                padding: EdgeInsets.fromLTRB(14, 8, 14, 30),
+                child: Center(
+                  child: SizedBox(
+                    height: 22,
+                    width: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: ApprovalUiColors.primaryLight,
+                    ),
+                  ),
+                ),
+              );
+            }
+
+            return approvalCard(
+              visibleHistory[index],
+              historyMode: true,
+            );
+          },
+        ),
       ),
     );
   }
@@ -784,14 +852,18 @@ class _ApprovalsPageState extends State<ApprovalsPage>
                       color: color.withOpacity(.10),
                       borderRadius: BorderRadius.circular(22),
                     ),
-                    child: Icon(icon, color: color, size: 38),
+                    child: Icon(
+                      icon,
+                      color: color,
+                      size: 38,
+                    ),
                   ),
                   const SizedBox(height: 16),
                   Text(
                     title,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
-                      color: AppColors.textDark,
+                      color: ApprovalUiColors.textDark,
                       fontWeight: FontWeight.w900,
                       fontSize: 16,
                     ),
@@ -801,7 +873,7 @@ class _ApprovalsPageState extends State<ApprovalsPage>
                     subtitle,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
-                      color: AppColors.textSoft,
+                      color: ApprovalUiColors.textSoft,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -823,16 +895,37 @@ class _ApprovalsPageState extends State<ApprovalsPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bg,
+      backgroundColor: ApprovalUiColors.bg,
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: AppColors.primaryDark,
+        backgroundColor: ApprovalUiColors.primaryDark,
         iconTheme: const IconThemeData(color: Colors.white),
         title: const Text(
-          "Approvals",
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+          'Approvals',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w900,
+          ),
         ),
-
+        actions: [
+          IconButton(
+            tooltip: 'Refresh',
+            onPressed: refreshing ? null : refreshAll,
+            icon: refreshing
+                ? const SizedBox(
+              height: 18,
+              width: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            )
+                : const Icon(
+              Icons.refresh,
+              color: Colors.white,
+            ),
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(62),
           child: Padding(
@@ -843,7 +936,9 @@ class _ApprovalsPageState extends State<ApprovalsPage>
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(.16),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withOpacity(.14)),
+                border: Border.all(
+                  color: Colors.white.withOpacity(.14),
+                ),
               ),
               child: TabBar(
                 controller: tabController,
@@ -852,7 +947,7 @@ class _ApprovalsPageState extends State<ApprovalsPage>
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                labelColor: AppColors.primaryDark,
+                labelColor: ApprovalUiColors.primaryDark,
                 unselectedLabelColor: Colors.white.withOpacity(.78),
                 dividerColor: Colors.transparent,
                 labelStyle: const TextStyle(
@@ -860,8 +955,12 @@ class _ApprovalsPageState extends State<ApprovalsPage>
                   fontSize: 13,
                 ),
                 tabs: [
-                  Tab(text: pending.isEmpty ? "Pending" : "Pending (${pending.length})"),
-                  const Tab(text: "History"),
+                  Tab(
+                    text: pending.isEmpty
+                        ? 'Pending'
+                        : 'Pending (${pending.length})',
+                  ),
+                  const Tab(text: 'History'),
                 ],
               ),
             ),
@@ -878,4 +977,3 @@ class _ApprovalsPageState extends State<ApprovalsPage>
     );
   }
 }
-

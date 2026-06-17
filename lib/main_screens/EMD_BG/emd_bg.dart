@@ -2,6 +2,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/services.dart';
+
+const String kEmdbgApiBaseUrl = 'https://ascent.crm.azcentrix.com:4447/api/v1';
 
 class AppColors {
   static const Color primaryDark = Color(0xFF103050);
@@ -88,7 +91,7 @@ class _EmdBgState extends State<EmdBg> {
       setState(() => isLoading = true);
 
       final response = await http.get(
-        Uri.parse("http://103.110.236.187:3076/api/v1/emdbg"),
+        Uri.parse("$kEmdbgApiBaseUrl/emdbg"),
         headers: {
           'Authorization': 'Bearer $token',
           'X-Tenant-Slug': widget.tenantSlug,
@@ -284,7 +287,7 @@ class _EmdBgState extends State<EmdBg> {
                   ],
                 ),
               ),
-             
+
             ],
           ),
         ),
@@ -891,7 +894,23 @@ class _EmdBgState extends State<EmdBg> {
                           ),
                       ],
                     ),
-                    const SizedBox(height: 13),
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: const [
+                        Text(
+                          'Tap to view details',
+                          style: TextStyle(
+                            color: Color(0xff3060A0),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        SizedBox(width: 4),
+                        Icon(Icons.chevron_right_rounded, color: Color(0xff3060A0), size: 18),
+                      ],
+                    ),
+                    const SizedBox(height: 9),
                     flowStepper(r, category),
                     if (isReleased) ...[
                       const SizedBox(height: 13),
@@ -1002,6 +1021,22 @@ class _EmdBgState extends State<EmdBg> {
     );
   }
 
+
+  Future<void> openRecordDetail(Map<String, dynamic> record) async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => EmdBgDetailScreen(
+          tenantSlug: widget.tenantSlug,
+          initialRecord: record,
+        ),
+      ),
+    );
+
+    if (changed == true) {
+      await loadData();
+    }
+  }
+
   Widget categorySection(String category) {
     final list = byCategory(category);
     if (list.isEmpty) return const SizedBox();
@@ -1009,7 +1044,10 @@ class _EmdBgState extends State<EmdBg> {
     return Column(
       children: [
         sectionHeader(category, list),
-        ...list.map((e) => recordCard(e, category)),
+        ...list.map((e) => GestureDetector(
+          onTap: () => openRecordDetail(e),
+          child: recordCard(e, category),
+        )),
         const SizedBox(height: 8),
       ],
     );
@@ -1069,4 +1107,1294 @@ class _EmdBgState extends State<EmdBg> {
       ),
     );
   }
+}
+
+class EmdBgDetailScreen extends StatefulWidget {
+  final String tenantSlug;
+  final Map<String, dynamic> initialRecord;
+
+  const EmdBgDetailScreen({
+    super.key,
+    required this.tenantSlug,
+    required this.initialRecord,
+  });
+
+  @override
+  State<EmdBgDetailScreen> createState() => _EmdBgDetailScreenState();
+}
+
+class _EmdBgDetailScreenState extends State<EmdBgDetailScreen> {
+  late Map<String, dynamic> record;
+  bool isLoading = false;
+  bool isActionBusy = false;
+  bool changed = false;
+  String role = '';
+  List<Map<String, dynamic>> renewals = [];
+
+  @override
+  void initState() {
+    super.initState();
+    record = Map<String, dynamic>.from(widget.initialRecord);
+    _loadUserRole();
+    refreshRecord();
+    loadRenewals();
+  }
+
+  Future<void> _loadUserRole() async {
+    final prefs = await SharedPreferences.getInstance();
+    final possibleRole = prefs.getString('role') ??
+        prefs.getString('user_role') ??
+        prefs.getString('auth_role') ??
+        prefs.getString('current_user_role') ??
+        '';
+    if (mounted) {
+      setState(() => role = possibleRole.toLowerCase());
+    }
+  }
+
+  Future<Map<String, String>> _headers({bool json = true}) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('auth_token') ??
+        prefs.getString('access_token') ??
+        prefs.getString('token');
+
+    final headers = <String, String>{
+      'X-Tenant-Slug': widget.tenantSlug,
+      'Accept': 'application/json',
+    };
+
+    if (token != null && token.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+
+    if (json) {
+      headers['Content-Type'] = 'application/json';
+    }
+
+    return headers;
+  }
+
+  Future<void> refreshRecord() async {
+    final id = record['id'];
+    if (id == null) return;
+
+    try {
+      setState(() => isLoading = true);
+      final response = await http.get(
+        Uri.parse('$kEmdbgApiBaseUrl/emdbg/$id'),
+        headers: await _headers(),
+      );
+
+      if (response.statusCode == 200) {
+        setState(() {
+          record = Map<String, dynamic>.from(jsonDecode(response.body));
+          isLoading = false;
+        });
+      } else {
+        setState(() => isLoading = false);
+        showError(response.body);
+      }
+    } catch (e) {
+      setState(() => isLoading = false);
+      showError(e.toString());
+    }
+  }
+
+  Future<void> loadRenewals() async {
+    final id = record['id'];
+    if (id == null) return;
+
+    try {
+      final response = await http.get(
+        Uri.parse('$kEmdbgApiBaseUrl/emdbg/$id/renewals'),
+        headers: await _headers(),
+      );
+
+      if (response.statusCode == 200) {
+        final List data = jsonDecode(response.body);
+        if (mounted) {
+          setState(() {
+            renewals = data.map((e) => Map<String, dynamic>.from(e)).toList();
+          });
+        }
+      }
+    } catch (_) {
+      // Renewal history is optional for the detail screen.
+    }
+  }
+
+  void showError(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void showSuccess(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: const Color(0xff059669),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Future<void> postAction(
+      String endpoint, {
+        Map<String, dynamic>? body,
+        String successMessage = 'Updated successfully',
+      }) async {
+    final id = record['id'];
+    if (id == null) return;
+
+    try {
+      setState(() => isActionBusy = true);
+      final response = await http.post(
+        Uri.parse('$kEmdbgApiBaseUrl/emdbg/$id/$endpoint'),
+        headers: await _headers(),
+        body: jsonEncode(body ?? {}),
+      );
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        changed = true;
+        showSuccess(successMessage);
+        await refreshRecord();
+        await loadRenewals();
+      } else {
+        showError(response.body);
+      }
+    } catch (e) {
+      showError(e.toString());
+    } finally {
+      if (mounted) setState(() => isActionBusy = false);
+    }
+  }
+
+  Future<bool> confirm(String title, String message, String confirmLabel) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryDeep,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(confirmLabel),
+          ),
+        ],
+      ),
+    );
+
+    return result == true;
+  }
+
+  Future<void> requestApproval() async {
+    if (await confirm(
+      'Request Approval',
+      "Send ${text(record['reference_num'])} for manager approval?",
+      'Request',
+    )) {
+      await postAction('request-approval', successMessage: 'Approval requested');
+    }
+  }
+
+  Future<void> approve(String decision) async {
+    String? reason;
+    if (decision == 'rejected') {
+      reason = await promptText(
+        title: 'Rejection reason',
+        hint: 'Enter reason',
+        required: true,
+      );
+      if (reason == null || reason.trim().isEmpty) return;
+    }
+
+    await postAction(
+      'approve',
+      body: {
+        'decision': decision,
+        'rejection_reason': reason,
+      },
+      successMessage: "${text(record['reference_num'])} $decision",
+    );
+  }
+
+  Future<void> acknowledgeDocument() async {
+    if (await confirm(
+      'Acknowledge Document',
+      "Acknowledge the instrument document for ${text(record['reference_num'])}?",
+      'Acknowledge',
+    )) {
+      await postAction('acknowledge-instrument', successMessage: 'Document acknowledged');
+    }
+  }
+
+  Future<void> markPaid() async {
+    if (await confirm(
+      'Confirm Payment',
+      "Mark ${text(record['reference_num'])} as Paid?",
+      'Mark Paid',
+    )) {
+      await postAction('mark-paid', successMessage: 'Marked as paid');
+    }
+  }
+
+  Future<void> confirmReturn() async {
+    if (await confirm(
+      'Confirm Return',
+      "Confirm return for ${text(record['reference_num'])}?",
+      'Confirm Return',
+    )) {
+      await postAction('confirm-return', successMessage: 'Return confirmed');
+    }
+  }
+
+  Future<void> encash() async {
+    if (await confirm(
+      'Mark as Encashed',
+      "Mark ${text(record['reference_num'])} as Encashed? This action cannot be undone.",
+      'Mark Encashed',
+    )) {
+      await postAction('encash', successMessage: 'Marked as encashed');
+    }
+  }
+
+  Future<String?> promptText({
+    required String title,
+    required String hint,
+    bool required = false,
+  }) async {
+    final controller = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+        content: TextField(
+          controller: controller,
+          maxLines: 3,
+          decoration: InputDecoration(
+            hintText: hint,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryDeep,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              if (required && controller.text.trim().isEmpty) return;
+              Navigator.pop(context, controller.text.trim());
+            },
+            child: const Text('Submit'),
+          ),
+        ],
+      ),
+    );
+
+    controller.dispose();
+    return result;
+  }
+
+  String text(dynamic value) {
+    final s = value?.toString() ?? '';
+    return s.trim().isEmpty ? '-' : s;
+  }
+
+  bool hasValue(dynamic value) {
+    return value != null && value.toString().trim().isNotEmpty;
+  }
+
+  bool get isAccounts => role == 'accounts';
+  bool get isManager => ['admin', 'ceo', 'manager', 'vp'].contains(role);
+  bool get isPrivileged => ['admin', 'ceo', 'super_admin'].contains(role);
+  bool get canRenewBg => isPrivileged || isManager || isAccounts;
+
+  bool get isPbgType => const [
+    'Performance BG',
+    'Security Deposit',
+    'Advance BG',
+    'Retention BG',
+  ].contains(record['instrument_type']);
+
+  bool get isTenderFee => const ['DD', 'Online Payment'].contains(record['instrument_type']);
+  bool get hasReturnFlow => !isTenderFee;
+
+  String get category {
+    final type = text(record['instrument_type']);
+    if (type == 'DD' || type == 'Online Payment') return 'Tender Fee';
+    if (type == 'EMD') return 'EMD';
+    return 'PBG';
+  }
+
+  Color get categoryColor {
+    if (category == 'Tender Fee') return const Color(0xffE91E63);
+    if (category == 'EMD') return const Color(0xff2563EB);
+    return const Color(0xff7C3AED);
+  }
+
+  IconData get categoryIcon {
+    if (category == 'Tender Fee') return Icons.receipt_long;
+    if (category == 'EMD') return Icons.paid_outlined;
+    return Icons.account_balance;
+  }
+
+  String money(dynamic v) {
+    final n = double.tryParse(v?.toString() ?? '0') ?? 0;
+    if (n >= 10000000) return '₹${(n / 10000000).toStringAsFixed(2)}Cr';
+    if (n >= 100000) return '₹${(n / 100000).toStringAsFixed(2)}L';
+    return '₹${n.toStringAsFixed(0)}';
+  }
+
+  String get actionablePhrase {
+    final approvalStatus = text(record['approval_status']) == '-' ? 'none' : text(record['approval_status']);
+    final financeStatus = text(record['finance_status']) == '-' ? 'unpaid' : text(record['finance_status']);
+    final returnStatus = text(record['return_status']) == '-' ? 'none' : text(record['return_status']);
+
+    if (record['status'] == 'Released' || (returnStatus == 'confirmed' && record['status'] != 'Encashed')) return '';
+    if (record['status'] == 'Encashed') return 'Instrument encashed by client';
+    if (approvalStatus == 'rejected') return 'Approval rejected — edit and resubmit';
+    if (approvalStatus == 'pending') {
+      return isManager ? 'Pending your approval — action required' : 'Submitted and awaiting manager approval';
+    }
+
+    if (approvalStatus == 'approved') {
+      if (!hasValue(record['instrument_document_url'])) {
+        return isAccounts ? 'Action required: Upload instrument document' : 'Waiting for accounts to upload document';
+      }
+      if (record['instrument_acknowledged'] != true) {
+        return isAccounts ? 'Waiting for sales to acknowledge the document' : 'Action required: Acknowledge the uploaded document';
+      }
+      if (!hasValue(record['payment_proof_url'])) {
+        if (!isPbgType && record['workings_approved'] == false) return 'Workings approval pending — payment is blocked';
+        return isAccounts ? 'Action required: Upload payment proof' : 'Waiting for accounts to upload payment proof';
+      }
+      if (financeStatus != 'paid') {
+        return isAccounts ? 'Action required: Mark as paid' : 'Payment proof uploaded — awaiting accounts confirmation';
+      }
+      if (!isTenderFee &&
+          (record['tender_result'] == 'Won' || record['tender_result'] == 'Lost') &&
+          returnStatus == 'none') {
+        return isAccounts ? 'Waiting for sales to upload return document' : 'Action required: Upload return document from client';
+      }
+      if (returnStatus == 'pending_confirmation') {
+        return isAccounts ? 'Action required: Confirm the return document' : 'Return document uploaded — awaiting accounts confirmation';
+      }
+      if (isPbgType && record['expiry_status'] == 'Critical') return 'BG expiring within 7 days — renew immediately';
+      if (isPbgType && record['expiry_status'] == 'Warning') return 'BG expiring within 30 days — renew soon';
+      if (isPbgType && record['expiry_status'] == 'Expired' && record['status'] != 'Released') {
+        return 'BG has expired — upload release letter';
+      }
+    }
+
+    return '';
+  }
+
+  List<String> get flowSteps {
+    if (category == 'Tender Fee') {
+      return ['Approved', 'Doc Uploaded', 'Acknowledged', 'Payment Proof', 'Paid'];
+    }
+
+    return [
+      'Approved',
+      'Doc Uploaded',
+      'Acknowledged',
+      'Payment Proof',
+      'Paid',
+      'Return Doc',
+      category == 'PBG' ? 'Released' : 'Returned',
+    ];
+  }
+
+  int get activeFlowStep {
+    int active = 0;
+
+    if (record['approval_status'] == 'approved') active = 1;
+    if (hasValue(record['instrument_document_url'])) active = 2;
+    if (record['instrument_acknowledged'] == true) active = 3;
+    if (hasValue(record['payment_proof_url'])) active = 4;
+    if (record['finance_status'] == 'paid') active = 5;
+
+    if (category == 'Tender Fee' && (record['finance_status'] == 'paid' || record['status'] == 'Released')) {
+      return flowSteps.length;
+    }
+
+    if (hasReturnFlow) {
+      if (hasValue(record['return_document_url'])) active = 6;
+      if (record['return_status'] == 'confirmed' || record['status'] == 'Released') {
+        active = flowSteps.length;
+      }
+    }
+
+    return active;
+  }
+
+  bool get canMarkPaid {
+    if (!isAccounts) return false;
+    if (record['approval_status'] != 'approved') return false;
+    if (record['finance_status'] == 'paid') return false;
+    if (!hasValue(record['instrument_document_url'])) return false;
+    if (record['instrument_acknowledged'] != true) return false;
+    if (!hasValue(record['payment_proof_url'])) return false;
+    if (!isPbgType && record['workings_approved'] == false) return false;
+    return true;
+  }
+
+  String get paymentBlockReason {
+    if (!isAccounts || record['approval_status'] != 'approved' || record['finance_status'] == 'paid') return '';
+    if (!hasValue(record['instrument_document_url'])) return 'Upload document first.';
+    if (record['instrument_acknowledged'] != true) return 'Waiting for sales to acknowledge document.';
+    if (!hasValue(record['payment_proof_url'])) return 'Upload payment proof first.';
+    if (!isPbgType && record['workings_approved'] == false) return 'Tender workings not yet approved.';
+    return 'Complete all steps first.';
+  }
+
+  List<_Notice> get notices {
+    final list = <_Notice>[];
+    final approvalStatus = text(record['approval_status']) == '-' ? 'none' : text(record['approval_status']);
+    final financeStatus = text(record['finance_status']) == '-' ? 'unpaid' : text(record['finance_status']);
+    final returnStatus = text(record['return_status']) == '-' ? 'none' : text(record['return_status']);
+    final tenderWon = record['tender_result'] == 'Won';
+    final tenderLost = record['tender_result'] == 'Lost';
+
+    if (approvalStatus == 'rejected') {
+      list.add(_Notice(
+        icon: Icons.cancel_outlined,
+        color: Colors.red,
+        title: 'Approval Rejected',
+        body: hasValue(record['last_rejection_reason'])
+            ? "Reason: ${record['last_rejection_reason']}"
+            : 'This record was rejected. Edit and re-submit for approval.',
+      ));
+    }
+
+    if (approvalStatus == 'pending') {
+      list.add(_Notice(
+        icon: Icons.schedule,
+        color: const Color(0xffD97706),
+        title: 'Awaiting Approval',
+        body: isManager
+            ? 'Action required: Review and approve or reject this instrument.'
+            : 'Submitted for manager approval. Locked until decision.',
+      ));
+    }
+
+    if (approvalStatus == 'approved' && financeStatus != 'paid') {
+      if (!hasValue(record['instrument_document_url'])) {
+        list.add(_Notice(
+          icon: Icons.upload_file,
+          color: const Color(0xff2563EB),
+          title: isPbgType ? 'Upload BG Draft Document' : 'Upload Instrument Document',
+          body: isAccounts
+              ? 'Approval granted. Upload the document for the sales team to acknowledge.'
+              : 'Waiting for accounts to upload the instrument document.',
+        ));
+      } else if (record['instrument_acknowledged'] != true) {
+        list.add(_Notice(
+          icon: Icons.fact_check_outlined,
+          color: const Color(0xffD97706),
+          title: isAccounts ? 'Waiting for Sales Acknowledgment' : 'Action Required — Acknowledge Document',
+          body: isAccounts
+              ? 'Document uploaded. Awaiting the sales person to acknowledge receipt.'
+              : 'Accounts has uploaded the document. Please review and acknowledge it to proceed.',
+        ));
+      } else if (!hasValue(record['payment_proof_url'])) {
+        if (!isPbgType && record['workings_approved'] == false) {
+          list.add(_Notice(
+            icon: Icons.warning_amber_rounded,
+            color: const Color(0xffD97706),
+            title: 'Workings Approval Pending',
+            body: 'Payment is blocked until tender workings are approved.',
+          ));
+        } else {
+          list.add(_Notice(
+            icon: Icons.upload_file,
+            color: const Color(0xff059669),
+            title: isAccounts ? 'Upload Payment Proof' : 'Document Acknowledged',
+            body: isAccounts
+                ? 'Document acknowledged by sales. Upload the payment proof document to proceed.'
+                : 'Awaiting accounts to upload payment proof.',
+          ));
+        }
+      } else {
+        list.add(_Notice(
+          icon: Icons.check_circle_outline,
+          color: const Color(0xff059669),
+          title: isAccounts ? 'Ready to Mark as Paid' : 'Payment Proof Uploaded',
+          body: isAccounts
+              ? 'Payment proof uploaded. Click Mark Paid to complete the payment step.'
+              : 'Waiting for accounts to confirm and mark as paid.',
+        ));
+      }
+    }
+
+    if (hasReturnFlow && financeStatus == 'paid' && (tenderWon || tenderLost) && returnStatus == 'none') {
+      list.add(_Notice(
+        icon: Icons.keyboard_return_rounded,
+        color: const Color(0xffD97706),
+        title: isAccounts ? 'Awaiting Return Document from Sales' : 'Upload Return Document',
+        body: isAccounts
+            ? 'Tender ${tenderWon ? 'Won' : 'Lost'} — waiting for sales to upload the return document.'
+            : 'Tender ${tenderWon ? 'Won' : 'Lost'} — upload the return/discharge document from the client.',
+      ));
+    }
+
+    if (hasReturnFlow && returnStatus == 'pending_confirmation') {
+      list.add(_Notice(
+        icon: Icons.pending_actions,
+        color: const Color(0xff0F766E),
+        title: 'Return Document Uploaded — Awaiting Confirmation',
+        body: isAccounts
+            ? 'Review the uploaded return document and confirm the return.'
+            : 'Waiting for accounts team to verify and confirm the return.',
+      ));
+    }
+
+    if (isPbgType &&
+        record['expiry_status'] == 'Critical' &&
+        record['status'] != 'Released' &&
+        financeStatus == 'paid') {
+      list.add(_Notice(
+        icon: Icons.shield_outlined,
+        color: Colors.red,
+        title: 'BG Expiring Within 7 Days',
+        body: "Expires ${text(record['expiry_date'])}. Initiate renewal immediately to avoid encashment risk.",
+      ));
+    }
+
+    if (record['status'] == 'Released' || returnStatus == 'confirmed') {
+      list.add(_Notice(
+        icon: Icons.verified_outlined,
+        color: const Color(0xff059669),
+        title: 'Instrument Returned / Released',
+        body: hasValue(record['release_date'])
+            ? "Confirmed on ${record['release_date']}.${hasValue(record['release_reference']) ? ' Ref: ${record["release_reference"]}' : ''}"
+            : 'This instrument has been returned and closed.',
+      ));
+    }
+
+    return list;
+  }
+
+  String previewUrl(String rawPath) {
+    if (rawPath.trim().isEmpty) return '';
+    final filePath = rawPath.startsWith('http') ? Uri.parse(rawPath).path : rawPath;
+    final params = Uri(queryParameters: {
+      'path': filePath,
+      'tenant': widget.tenantSlug,
+    }).query;
+    return '$kEmdbgApiBaseUrl/preview/file?$params';
+  }
+
+  Future<void> copyPreviewLink(String rawPath) async {
+    final url = previewUrl(rawPath);
+    if (url.isEmpty) return;
+    await Clipboard.setData(ClipboardData(text: url));
+    showSuccess('Preview link copied');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return WillPopScope(
+      onWillPop: () async {
+        Navigator.pop(context, changed);
+        return false;
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xffF3F6FA),
+        body: Column(
+          children: [
+            detailHeader(),
+            Expanded(
+              child: isLoading && record.isEmpty
+                  ? const Center(child: CircularProgressIndicator())
+                  : RefreshIndicator(
+                color: AppColors.primaryLight,
+                onRefresh: () async {
+                  await refreshRecord();
+                  await loadRenewals();
+                },
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  children: [
+                    heroCard(),
+                    if (actionablePhrase.isNotEmpty) actionBanner(),
+                    noticesBlock(),
+                    flowBlock(),
+                    infoBlock(),
+                    documentBlock(),
+                    actionBlock(),
+                    renewalBlock(),
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget detailHeader() {
+    return Container(
+      decoration: const BoxDecoration(gradient: AppColors.headerGradient),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+          child: Row(
+            children: [
+              GestureDetector(
+                onTap: () => Navigator.pop(context, changed),
+                child: Container(
+                  height: 42,
+                  width: 42,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(.14),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(Icons.arrow_back, color: Colors.white),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      text(record['reference_num']),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 21,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      "${text(record['instrument_type'])} · ${text(record['client_name'])}",
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (isLoading)
+                const SizedBox(
+                  height: 22,
+                  width: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                )
+              else
+                IconButton(
+                  onPressed: () async {
+                    await refreshRecord();
+                    await loadRenewals();
+                  },
+                  icon: const Icon(Icons.refresh, color: Colors.white),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget heroCard() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: [categoryColor.withOpacity(.85), categoryColor]),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: categoryColor.withOpacity(.18),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 26,
+            backgroundColor: Colors.white.withOpacity(.18),
+            child: Icon(categoryIcon, color: Colors.white, size: 26),
+          ),
+          const SizedBox(width: 13),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  category == 'PBG' ? 'Bank Guarantees' : category,
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 17),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  text(record['tender_title']),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: Colors.white.withOpacity(.78), fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              const Text(
+                'AMOUNT',
+                style: TextStyle(color: Colors.white70, fontSize: 9, fontWeight: FontWeight.w900),
+              ),
+              Text(
+                money(record['amount']),
+                style: const TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.w900),
+              ),
+              Text(
+                text(record['status']),
+                style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w800),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget actionBanner() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: const Color(0xffFFF7ED),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xffFDBA74)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.notifications_active_outlined, color: Color(0xffEA580C), size: 19),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              actionablePhrase,
+              style: const TextStyle(
+                color: Color(0xff9A3412),
+                fontWeight: FontWeight.w900,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget noticesBlock() {
+    final list = notices;
+    if (list.isEmpty) return const SizedBox();
+
+    return section(
+      title: 'Current Status',
+      child: Column(
+        children: list.map((n) => noticeTile(n)).toList(),
+      ),
+    );
+  }
+
+  Widget noticeTile(_Notice n) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: n.color.withOpacity(.08),
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: n.color.withOpacity(.25)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(n.icon, color: n.color, size: 18),
+          const SizedBox(width: 9),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: TextStyle(color: n.color, fontSize: 12, fontWeight: FontWeight.w700),
+                children: [
+                  TextSpan(text: '${n.title}: ', style: const TextStyle(fontWeight: FontWeight.w900)),
+                  TextSpan(text: n.body),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget flowBlock() {
+    final steps = flowSteps;
+    final active = activeFlowStep;
+
+    return section(
+      title: 'Workflow',
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 8,
+        children: List.generate(steps.length, (i) {
+          final done = i < active;
+          final current = i == active && active < steps.length;
+          final bg = done
+              ? const Color(0xffD1FAE5)
+              : current
+              ? categoryColor.withOpacity(.12)
+              : const Color(0xffF1F5F9);
+          final fg = done
+              ? const Color(0xff047857)
+              : current
+              ? categoryColor
+              : const Color(0xff94A3B8);
+
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(9),
+              border: Border.all(color: current ? categoryColor.withOpacity(.35) : Colors.transparent),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(done ? Icons.check_circle : current ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                    size: 12, color: fg),
+                const SizedBox(width: 5),
+                Text(
+                  steps[i],
+                  style: TextStyle(color: fg, fontSize: 11, fontWeight: FontWeight.w900),
+                ),
+              ],
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  Widget infoBlock() {
+    return section(
+      title: 'Instrument Details',
+      child: Column(
+        children: [
+          infoRow('Reference No.', record['reference_num'], mono: true),
+          infoRow('Client', record['client_name']),
+          infoRow('Customer', record['customer_name_display']),
+          infoRow('Tender No.', record['tender_num_display'] ?? record['tender_num']),
+          infoRow('Tender Title', record['tender_title']),
+          infoRow('Tender Result', record['tender_result']),
+          infoRow('Sales Person', record['sales_person_name']),
+          infoRow('Sales Email', record['sales_person_email']),
+          infoRow('Sales Phone', record['sales_person_phone']),
+          infoRow('Instrument Type', record['instrument_type']),
+          infoRow('Instrument No.', record['instrument_number'], mono: true),
+          infoRow('Amount', money(record['amount']), highlight: AppColors.primaryDeep),
+          infoRow('Bank', record['bank_name']),
+          infoRow('Branch', record['bank_branch']),
+          infoRow('Issued Date', record['issued_date']),
+          infoRow('Submitted Date', record['submitted_date']),
+          infoRow('Valid From', record['valid_from']),
+          infoRow('Expiry Date', record['expiry_date']),
+          infoRow('Days to Expiry', record['days_to_expiry']),
+          infoRow('Expiry Status', record['expiry_status']),
+          infoRow('Approval Status', record['approval_display'] ?? record['approval_status']),
+          infoRow('Finance Status', record['finance_status']),
+          infoRow('Paid Date', record['finance_paid_date']),
+          infoRow('Paid By', record['finance_paid_by_name']),
+          infoRow('Return Status', record['return_status']),
+          infoRow('Returned / Released Date', record['release_date'] ?? record['return_confirmed_at']),
+          infoRow('Created By', record['created_by_name']),
+          infoRow('Purpose', record['purpose']),
+          infoRow('Notes', record['notes']),
+        ],
+      ),
+    );
+  }
+
+  Widget documentBlock() {
+    final docs = [
+      _DocItem('Instrument Document', 'instrument_document_url', 'instrument_file_size_kb'),
+      _DocItem('Payment Proof', 'payment_proof_url', 'payment_proof_size_kb'),
+      if (hasReturnFlow) _DocItem('Return Document', 'return_document_url', 'return_file_size_kb'),
+      _DocItem('Release Document', 'release_document_url', 'release_file_size_kb'),
+    ];
+
+    return section(
+      title: 'Documents',
+      child: Column(
+        children: docs.map((d) => docTile(d)).toList(),
+      ),
+    );
+  }
+
+  Widget docTile(_DocItem doc) {
+    final url = record[doc.urlKey]?.toString() ?? '';
+    final uploaded = url.trim().isNotEmpty;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 9),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: uploaded ? const Color(0xffEEF2FF) : const Color(0xffF8FAFC),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: uploaded ? const Color(0xffC7D2FE) : const Color(0xffE2E8F0)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            uploaded ? Icons.file_present_rounded : Icons.description_outlined,
+            color: uploaded ? const Color(0xff4F46E5) : const Color(0xff94A3B8),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  doc.label,
+                  style: const TextStyle(
+                    color: AppColors.primaryDeep,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  uploaded
+                      ? 'Uploaded${hasValue(record[doc.sizeKey]) ? ' · ${record[doc.sizeKey]} KB' : ''}'
+                      : 'Not uploaded',
+                  style: TextStyle(
+                    color: uploaded ? const Color(0xff059669) : const Color(0xff94A3B8),
+                    fontWeight: FontWeight.w800,
+                    fontSize: 11,
+                  ),
+                ),
+                if (doc.urlKey == 'instrument_document_url' && record['instrument_acknowledged'] == true)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 3),
+                    child: Text(
+                      'Acknowledged',
+                      style: TextStyle(color: Color(0xff2563EB), fontWeight: FontWeight.w900, fontSize: 10),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (uploaded)
+            TextButton.icon(
+              onPressed: () => copyPreviewLink(url),
+              icon: const Icon(Icons.link, size: 15),
+              label: const Text('Copy link'),
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xff4F46E5),
+                textStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget actionBlock() {
+    final actions = <Widget>[];
+    final approvalStatus = text(record['approval_status']) == '-' ? 'none' : text(record['approval_status']);
+    final financeStatus = text(record['finance_status']) == '-' ? 'unpaid' : text(record['finance_status']);
+    final returnStatus = text(record['return_status']) == '-' ? 'none' : text(record['return_status']);
+    final canAct = record['status'] == 'Active' || record['status'] == 'Renewed';
+
+    if (canAct && approvalStatus == 'none') {
+      actions.add(actionButton(
+        label: 'Request Approval',
+        icon: Icons.send,
+        color: AppColors.primaryDeep,
+        onTap: requestApproval,
+      ));
+    }
+
+    if (canAct && isManager && approvalStatus == 'pending') {
+      actions.add(actionButton(
+        label: 'Approve',
+        icon: Icons.check_circle,
+        color: const Color(0xff059669),
+        onTap: () => approve('approved'),
+      ));
+      actions.add(actionButton(
+        label: 'Reject',
+        icon: Icons.cancel,
+        color: Colors.red,
+        onTap: () => approve('rejected'),
+      ));
+    }
+
+    if (!isAccounts &&
+        approvalStatus == 'approved' &&
+        hasValue(record['instrument_document_url']) &&
+        record['instrument_acknowledged'] != true &&
+        financeStatus != 'paid') {
+      actions.add(actionButton(
+        label: 'Acknowledge Document',
+        icon: Icons.fact_check,
+        color: const Color(0xff2563EB),
+        onTap: acknowledgeDocument,
+      ));
+    }
+
+    if (isAccounts && approvalStatus == 'approved' && financeStatus != 'paid') {
+      if (canMarkPaid) {
+        actions.add(actionButton(
+          label: 'Mark Paid',
+          icon: Icons.payments,
+          color: const Color(0xff059669),
+          onTap: markPaid,
+        ));
+      } else {
+        actions.add(disabledAction(paymentBlockReason));
+      }
+    }
+
+    if (isAccounts &&
+        hasReturnFlow &&
+        hasValue(record['return_document_url']) &&
+        returnStatus != 'confirmed') {
+      actions.add(actionButton(
+        label: 'Confirm Return',
+        icon: Icons.keyboard_return,
+        color: const Color(0xff0F766E),
+        onTap: confirmReturn,
+      ));
+    }
+
+    if (canAct && isManager && record['status'] != 'Encashed') {
+      actions.add(actionButton(
+        label: 'Mark Encashed',
+        icon: Icons.warning_amber_rounded,
+        color: Colors.red,
+        onTap: encash,
+      ));
+    }
+
+    if (actions.isEmpty) return const SizedBox();
+
+    return section(
+      title: 'Actions',
+      child: isActionBusy
+          ? const Padding(
+        padding: EdgeInsets.all(12),
+        child: Center(child: CircularProgressIndicator(color: AppColors.primaryLight)),
+      )
+          : Wrap(
+        spacing: 9,
+        runSpacing: 9,
+        children: actions,
+      ),
+    );
+  }
+
+  Widget actionButton({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return ElevatedButton.icon(
+      onPressed: isActionBusy ? null : onTap,
+      icon: Icon(icon, size: 16),
+      label: Text(label),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
+        textStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
+      ),
+    );
+  }
+
+  Widget disabledAction(String message) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+      decoration: BoxDecoration(
+        color: const Color(0xffFFF7ED),
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: const Color(0xffFDBA74)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.lock_clock, color: Color(0xffD97706), size: 15),
+          const SizedBox(width: 7),
+          Text(
+            message.isEmpty ? 'Complete all steps first.' : message,
+            style: const TextStyle(
+              color: Color(0xff9A3412),
+              fontWeight: FontWeight.w900,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget renewalBlock() {
+    if (renewals.isEmpty) return const SizedBox();
+
+    return section(
+      title: 'Renewal History',
+      child: Column(
+        children: renewals.map((r) {
+          return Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xffF8FAFC),
+              borderRadius: BorderRadius.circular(13),
+              border: Border.all(color: const Color(0xffE2E8F0)),
+            ),
+            child: Column(
+              children: [
+                infoRow('New Expiry', r['new_expiry_date']),
+                infoRow('Reference', r['new_reference']),
+                infoRow('Renewed By', r['renewed_by_name']),
+                infoRow('Notes', r['notes']),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget section({required String title, required Widget child}) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xffE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryDeep.withOpacity(.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title.toUpperCase(),
+            style: const TextStyle(
+              color: Color(0xff94A3B8),
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: .7,
+            ),
+          ),
+          const SizedBox(height: 11),
+          child,
+        ],
+      ),
+    );
+  }
+
+  Widget infoRow(String label, dynamic value, {Color? highlight, bool mono = false}) {
+    final display = value == null || value.toString().trim().isEmpty ? '—' : value.toString();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 7),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 130,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Color(0xff94A3B8),
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              display,
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                color: highlight ?? AppColors.primarySlate,
+                fontSize: 12,
+                fontFamily: mono ? 'monospace' : null,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Notice {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String body;
+
+  const _Notice({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.body,
+  });
+}
+
+class _DocItem {
+  final String label;
+  final String urlKey;
+  final String sizeKey;
+
+  const _DocItem(this.label, this.urlKey, this.sizeKey);
 }

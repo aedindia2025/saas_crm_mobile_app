@@ -2,6 +2,7 @@ import 'package:ascent_crm/routes/app_route.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
+import 'login/login_screen.dart';
 import 'notification_service/notification_service.dart';
 
 void main()async {
@@ -20,9 +21,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.red),
-      ),
+      theme: AppTheme.lightTheme,
       initialRoute: '/',
       onGenerateRoute: AppRoute.onGenerateRoute,
     );

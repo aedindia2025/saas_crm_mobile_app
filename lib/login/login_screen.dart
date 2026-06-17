@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:ascent_crm/utile/app_colors.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +12,538 @@ import '../api_helpers/api_method.dart';
 import '../api_helpers/api_urls.dart';
 import '../main_screens/dashboard/main_dashboard.dart';
 
+
+class AppTheme {
+  AppTheme._();
+
+  static const Color primaryBlue = Color(0xFF1565C0);
+  static const Color secondaryBlue = Color(0xFF1E88E5);
+  static const Color lightBlue = Color(0xFFEAF3FF);
+  static const Color veryLightBlue = Color(0xFFF6FAFF);
+
+  static const Color background = Color(0xFFFFFFFF);
+  static const Color surface = Color(0xFFFFFFFF);
+  static const Color cardColor = Color(0xFFFFFFFF);
+
+  static const Color textDark = Color(0xFF1F2937);
+  static const Color textMedium = Color(0xFF4B5563);
+  static const Color textLight = Color(0xFF6B7280);
+
+  static const Color borderColor = Color(0xFFE5EAF2);
+
+  static ThemeData lightTheme = ThemeData(
+    useMaterial3: true,
+    brightness: Brightness.light,
+
+    primaryColor: primaryBlue,
+    scaffoldBackgroundColor: background,
+
+    colorScheme: const ColorScheme.light(
+      primary: primaryBlue,
+      secondary: secondaryBlue,
+      surface: surface,
+      error: Color(0xFFD32F2F),
+      onPrimary: Colors.white,
+      onSecondary: Colors.white,
+      onSurface: textDark,
+    ),
+
+    fontFamily: 'Roboto',
+
+    appBarTheme: const AppBarTheme(
+      backgroundColor: Colors.white,
+      foregroundColor: textDark,
+      elevation: 0,
+      centerTitle: false,
+      scrolledUnderElevation: 0,
+      titleTextStyle: TextStyle(
+        color: textDark,
+        fontSize: 15,
+        fontWeight: FontWeight.w600,
+      ),
+      iconTheme: IconThemeData(
+        color: primaryBlue,
+        size: 19,
+      ),
+      actionsIconTheme: IconThemeData(
+        color: primaryBlue,
+        size: 19,
+      ),
+    ),
+
+    textTheme: const TextTheme(
+      displayLarge: TextStyle(
+        fontSize: 24,
+        fontWeight: FontWeight.w700,
+        color: textDark,
+      ),
+      displayMedium: TextStyle(
+        fontSize: 22,
+        fontWeight: FontWeight.w700,
+        color: textDark,
+      ),
+      displaySmall: TextStyle(
+        fontSize: 20,
+        fontWeight: FontWeight.w600,
+        color: textDark,
+      ),
+      headlineLarge: TextStyle(
+        fontSize: 19,
+        fontWeight: FontWeight.w600,
+        color: textDark,
+      ),
+      headlineMedium: TextStyle(
+        fontSize: 17,
+        fontWeight: FontWeight.w600,
+        color: textDark,
+      ),
+      headlineSmall: TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+        color: textDark,
+      ),
+      titleLarge: TextStyle(
+        fontSize: 15,
+        fontWeight: FontWeight.w600,
+        color: textDark,
+      ),
+      titleMedium: TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+        color: textDark,
+      ),
+      titleSmall: TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
+        color: textMedium,
+      ),
+      bodyLarge: TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w400,
+        color: textDark,
+      ),
+      bodyMedium: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w400,
+        color: textMedium,
+      ),
+      bodySmall: TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w400,
+        color: textLight,
+      ),
+      labelLarge: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        color: textDark,
+      ),
+      labelMedium: TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w500,
+        color: textMedium,
+      ),
+      labelSmall: TextStyle(
+        fontSize: 10,
+        fontWeight: FontWeight.w500,
+        color: textLight,
+      ),
+    ),
+
+    iconTheme: const IconThemeData(
+      color: primaryBlue,
+      size: 18,
+    ),
+
+    cardTheme: CardThemeData(
+      color: cardColor,
+      elevation: 0,
+      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(
+          color: borderColor,
+          width: 1,
+        ),
+      ),
+    ),
+
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: veryLightBlue,
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: 10,
+      ),
+      hintStyle: const TextStyle(
+        fontSize: 12,
+        color: textLight,
+      ),
+      labelStyle: const TextStyle(
+        fontSize: 12,
+        color: textMedium,
+      ),
+      prefixIconColor: primaryBlue,
+      suffixIconColor: primaryBlue,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(
+          color: borderColor,
+        ),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(
+          color: borderColor,
+        ),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(
+          color: primaryBlue,
+          width: 1.2,
+        ),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(
+          color: Color(0xFFD32F2F),
+        ),
+      ),
+    ),
+
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: primaryBlue,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        minimumSize: const Size(double.infinity, 42),
+        padding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 10,
+        ),
+        textStyle: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+    ),
+
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: primaryBlue,
+        side: const BorderSide(
+          color: primaryBlue,
+          width: 1,
+        ),
+        minimumSize: const Size(double.infinity, 40),
+        padding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 9,
+        ),
+        textStyle: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+    ),
+
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        foregroundColor: primaryBlue,
+        textStyle: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    ),
+
+    floatingActionButtonTheme: const FloatingActionButtonThemeData(
+      backgroundColor: primaryBlue,
+      foregroundColor: Colors.white,
+      elevation: 2,
+      iconSize: 18,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(16)),
+      ),
+    ),
+
+    bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+      backgroundColor: Colors.white,
+      selectedItemColor: primaryBlue,
+      unselectedItemColor: textLight,
+      selectedIconTheme: IconThemeData(size: 19),
+      unselectedIconTheme: IconThemeData(size: 18),
+      selectedLabelStyle: TextStyle(
+        fontSize: 10,
+        fontWeight: FontWeight.w600,
+      ),
+      unselectedLabelStyle: TextStyle(
+        fontSize: 10,
+        fontWeight: FontWeight.w500,
+      ),
+      type: BottomNavigationBarType.fixed,
+      elevation: 8,
+    ),
+
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: Colors.white,
+      elevation: 4,
+      height: 58,
+      indicatorColor: lightBlue,
+      iconTheme: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
+          return const IconThemeData(
+            color: primaryBlue,
+            size: 19,
+          );
+        }
+        return const IconThemeData(
+          color: textLight,
+          size: 18,
+        );
+      }),
+      labelTextStyle: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
+          return const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: primaryBlue,
+          );
+        }
+        return const TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w500,
+          color: textLight,
+        );
+      }),
+    ),
+
+    drawerTheme: const DrawerThemeData(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.white,
+    ),
+
+    listTileTheme: const ListTileThemeData(
+      iconColor: primaryBlue,
+      textColor: textDark,
+      selectedColor: primaryBlue,
+      contentPadding: EdgeInsets.symmetric(
+        horizontal: 14,
+        vertical: 0,
+      ),
+      minLeadingWidth: 22,
+      horizontalTitleGap: 8,
+      dense: true,
+    ),
+
+    dividerTheme: const DividerThemeData(
+      color: borderColor,
+      thickness: 1,
+      space: 1,
+    ),
+
+    chipTheme: ChipThemeData(
+      backgroundColor: lightBlue,
+      selectedColor: primaryBlue,
+      disabledColor: const Color(0xFFE5E7EB),
+      labelStyle: const TextStyle(
+        fontSize: 11,
+        color: textDark,
+        fontWeight: FontWeight.w500,
+      ),
+      secondaryLabelStyle: const TextStyle(
+        fontSize: 11,
+        color: Colors.white,
+        fontWeight: FontWeight.w500,
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 8,
+        vertical: 2,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+      ),
+      side: BorderSide.none,
+    ),
+
+    popupMenuTheme: PopupMenuThemeData(
+      color: Colors.white,
+      elevation: 4,
+      textStyle: const TextStyle(
+        fontSize: 12,
+        color: textDark,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+    ),
+
+    dialogTheme: DialogThemeData(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      titleTextStyle: const TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+        color: textDark,
+      ),
+      contentTextStyle: const TextStyle(
+        fontSize: 12,
+        color: textMedium,
+      ),
+    ),
+
+    snackBarTheme: SnackBarThemeData(
+      backgroundColor: textDark,
+      contentTextStyle: const TextStyle(
+        fontSize: 12,
+        color: Colors.white,
+      ),
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+    ),
+
+    progressIndicatorTheme: const ProgressIndicatorThemeData(
+      color: primaryBlue,
+    ),
+
+    checkboxTheme: CheckboxThemeData(
+      fillColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
+          return primaryBlue;
+        }
+        return Colors.white;
+      }),
+      checkColor: WidgetStateProperty.all(Colors.white),
+      side: const BorderSide(
+        color: borderColor,
+        width: 1.2,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(4),
+      ),
+    ),
+
+    radioTheme: RadioThemeData(
+      fillColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
+          return primaryBlue;
+        }
+        return textLight;
+      }),
+    ),
+
+    switchTheme: SwitchThemeData(
+      thumbColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
+          return primaryBlue;
+        }
+        return Colors.white;
+      }),
+      trackColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
+          return lightBlue;
+        }
+        return const Color(0xFFE5E7EB);
+      }),
+    ),
+
+    tabBarTheme: const TabBarThemeData(
+      labelColor: primaryBlue,
+      unselectedLabelColor: textLight,
+      indicatorColor: primaryBlue,
+      labelStyle: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+      ),
+      unselectedLabelStyle: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w500,
+      ),
+    ),
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+//  DESIGN TOKENS — white based blue theme
+// ═══════════════════════════════════════════════════════════════
+class _T {
+  // palette
+  static const ink       = Color(0xFF0D47A1); // deep blue
+  static const surface   = Color(0xFFFFFFFF);
+  static const card      = Color(0xFFFFFFFF);
+
+  static const purple    = Color(0xFF1565C0); // primary blue
+  static const pink      = Color(0xFF1E88E5); // secondary blue
+  static const violet    = Color(0xFF42A5F5); // soft blue
+  static const roseLight = Color(0xFFEAF3FF); // light blue
+
+  static const fieldBg   = Color(0xFFF6FAFF);
+  static const fieldBdr  = Color(0xFFD6E6F8);
+  static const textMain  = Color(0xFF102A43);
+  static const textMid   = Color(0xFF486581);
+  static const textHint  = Color(0xFF7B8794);
+
+  // gradients
+  static const heroGrad = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [
+      Color(0xFF1565C0),
+      Color(0xFF1E88E5),
+    ],
+  );
+
+  static const logoGrad = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [
+      Color(0xFF1565C0),
+      Color(0xFF42A5F5),
+    ],
+  );
+
+  static const titleGrad = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [
+      Color(0xFF0D47A1),
+      Color(0xFF1E88E5),
+    ],
+  );
+
+  // shadows
+  static List<BoxShadow> get logoShadow => [
+    BoxShadow(
+      color: Color(0xFF1565C0).withOpacity(0.18),
+      blurRadius: 28,
+      offset: const Offset(0, 10),
+    ),
+  ];
+
+  static List<BoxShadow> get cardShadow => [
+    BoxShadow(
+      color: Color(0xFF1565C0).withOpacity(0.08),
+      blurRadius: 18,
+      offset: const Offset(0, 8),
+    ),
+  ];
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  SCREEN
+// ═══════════════════════════════════════════════════════════════
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -18,162 +551,267 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
-  final organizationController = TextEditingController();
-  final usernameController = TextEditingController();
-  final passwordController = TextEditingController();
+class _LoginScreenState extends State<LoginScreen>
+    with TickerProviderStateMixin {
 
-  final companyCodeController = TextEditingController();
-  final quickPinController = TextEditingController();
+  String? companyLogoUrl;
 
-  final setupCompanyCodeController = TextEditingController();
-  final setupUsernameController = TextEditingController();
-  final setupPasswordController = TextEditingController();
-  final createPinController = TextEditingController();
-  final confirmPinController = TextEditingController();
+  // ── Quick PIN setup flow tokens ─────────────────────────────
+  String? quickPinChallengeId;   // from verify-account
+  String? quickPinSetupToken;    // from verify-otp
+  String? quickPinMaskedEmail;   // otp_delivery_target
+
+  // ── controllers ─────────────────────────────────────────────
+  final organizationController    = TextEditingController();
+  final usernameController        = TextEditingController();
+  final passwordController        = TextEditingController();
+  final companyCodeController     = TextEditingController(); // quick pin login company code
+  final quickPinController        = TextEditingController(); // quick pin login 4-digit pin
+  final setupCompanyCodeController= TextEditingController();
+  final setupUsernameController   = TextEditingController();
+  final createPinController       = TextEditingController();
+  final confirmPinController      = TextEditingController();
   final emailForgotPassController = TextEditingController();
+  final quickPinEmailController   = TextEditingController(); // setup email
+  final quickPinOtpController     = TextEditingController(); // setup otp
 
-  String? quickPinSetupToken;
-  static const String quickPinBaseUrl = "http://103.110.236.187:3076/api/v1";
+  // ── Quick PIN endpoints ─────────────────────────────────────
+  static const String quickPinBaseUrl =
+      "https://ascent.crm.azcentrix.com:4447/api/v1";
 
+  static const String quickPinVerifyAccountUrl =
+      "$quickPinBaseUrl/auth/quick-pin/verify-account";
 
-  bool obscurePassword = true;
-  bool obscureSetupPassword = true;
-  bool isQuickPinTab = false;
-  bool isCreatePinMode = false;
+  static const String quickPinVerifyOtpUrl =
+      "$quickPinBaseUrl/auth/quick-pin/verify-otp";
 
-  bool rememberMe = false;
+  static const String quickPinSetUrl =
+      "$quickPinBaseUrl/auth/quick-pin/set";
+
+  static const String quickPinLoginUrl =
+      "$quickPinBaseUrl/auth/quick-pin/login";
+
+  static const String resetPassword =
+      "https://ascent.crm.azcentrix.com:4447/api/v1/auth/reset-password";
+
+  bool obscurePassword      = true;
+  bool isQuickPinTab        = false;
+
+  // setup steps
+  bool isQuickPinOtpMode    = false; // OTP step
+  bool isCreatePinMode      = false; // create pin step
+
+  bool rememberMe           = false;
+
+  late AnimationController _bgAnimCtrl;
+
+  bool hasSavedCompanyCode = false;
+  String savedCompanyCode = "";
+
+  bool hasSavedUsername = false;
+  String savedUsername = "";
 
   @override
   void initState() {
     super.initState();
+    _bgAnimCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 8),
+    )..repeat(reverse: true);
     checkRememberMe();
+    loadCompanyLogo();
   }
+
+
+  Future<void> loadCompanyLogo() async {
+    final prefs = await SharedPreferences.getInstance();
+    final logo = prefs.getString('company_logo');
+    if (mounted) {
+      setState(() {
+        companyLogoUrl = logo;
+      });
+    }
+  }
+
+  // ── unchanged logic helpers ────────────────────────────────
 
   Future<String> getDeviceUUID() async {
     final prefs = await SharedPreferences.getInstance();
-
-    String? deviceUuid = prefs.getString("device_uuid");
-
-    if (deviceUuid == null || deviceUuid.isEmpty) {
-      deviceUuid = DateTime.now().millisecondsSinceEpoch.toString();
-      await prefs.setString("device_uuid", deviceUuid);
+    String? id = prefs.getString("device_uuid");
+    if (id == null || id.isEmpty) {
+      id = DateTime.now().millisecondsSinceEpoch.toString();
+      await prefs.setString("device_uuid", id);
     }
+    return id;
+  }
 
-    return deviceUuid;
+
+  Future<void> saveCompanyLogoUrlToPrefs(dynamic companyLogo) async {
+    if (companyLogo == null) return;
+
+    final path = companyLogo.toString().trim();
+    if (path.isEmpty) return;
+
+    // company_logo comes as a relative path like "/uploads/.../theme_logo.png"
+    // Prefix it with baseUrl. If it's already a full URL, leave it as-is.
+    final String fullUrl = path.startsWith('http')
+        ? path
+        : "${ApiUrls.baseUrl}${path.startsWith('/') ? '' : '/'}$path";
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('company_logo', fullUrl);
+
+    if (mounted) {
+      setState(() {
+        companyLogoUrl = fullUrl;
+      });
+    }
   }
 
   checkRememberMe() async {
     final prefs = await SharedPreferences.getInstance();
 
-    var isRemenberMe = prefs.getBool('rememberMe') ?? false;
-    setState(() {});
+    final savedCode = prefs.getString('company_code') ??
+        prefs.getString('organizationName') ??
+        prefs.getString('tenant_slug') ??
+        "";
 
-    if(isRemenberMe) {
-      organizationController.text = prefs.getString('organizationName') ?? "";
-      usernameController.text = prefs.getString('userName') ?? "";
+    final savedUser = prefs.getString('userName') ??
+        prefs.getString('quick_pin_username') ??
+        "";
 
-      setState(() {});
+    if (savedCode.trim().isNotEmpty) {
+      savedCompanyCode = savedCode.trim();
+      hasSavedCompanyCode = true;
+
+      organizationController.text = savedCompanyCode;
+      companyCodeController.text = savedCompanyCode;
+      setupCompanyCodeController.text = savedCompanyCode;
     }
+
+    if (savedUser.trim().isNotEmpty) {
+      savedUsername = savedUser.trim();
+      hasSavedUsername = true;
+
+      usernameController.text = savedUsername;
+      setupUsernameController.text = savedUsername;
+    }
+
+    rememberMe = prefs.getBool('rememberMe') ?? false;
+
+    if (mounted) setState(() {});
+  }
+
+  /*checkRememberMe() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final savedCode = prefs.getString('company_code') ??
+        prefs.getString('organizationName') ??
+        prefs.getString('tenant_slug') ??
+        "";
+
+    if (savedCode.trim().isNotEmpty) {
+      savedCompanyCode = savedCode.trim();
+      hasSavedCompanyCode = true;
+
+      organizationController.text = savedCompanyCode;
+      companyCodeController.text = savedCompanyCode;
+      setupCompanyCodeController.text = savedCompanyCode;
+    }
+
+    rememberMe = prefs.getBool('rememberMe') ?? false;
+
+    if (rememberMe) {
+      usernameController.text = prefs.getString('userName') ?? "";
+    }
+
+    if (mounted) setState(() {});
+  }*/
+
+  Future<void> saveCompanyCodeToPrefs(String code) async {
+    final cleanCode = code.trim();
+    if (cleanCode.isEmpty) return;
+
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.setString('company_code', cleanCode);
+    await prefs.setString('organizationName', cleanCode);
+    await prefs.setString('tenant_slug', cleanCode);
+
+    savedCompanyCode = cleanCode;
+    hasSavedCompanyCode = true;
+
+    organizationController.text = cleanCode;
+    companyCodeController.text = cleanCode;
+    setupCompanyCodeController.text = cleanCode;
+  }
+
+  /// store the employee_code / username used for quick pin login
+  Future<void> saveQuickPinUsernameToPrefs(String username) async {
+    final clean = username.trim();
+    if (clean.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('quick_pin_username', clean);
+    await prefs.setString('userName', clean);
   }
 
   @override
   void dispose() {
-    organizationController.dispose();
-    usernameController.dispose();
-    passwordController.dispose();
-    companyCodeController.dispose();
-    quickPinController.dispose();
-    setupCompanyCodeController.dispose();
-    setupUsernameController.dispose();
-    setupPasswordController.dispose();
-    createPinController.dispose();
-    confirmPinController.dispose();
-    emailForgotPassController.dispose();
+    _bgAnimCtrl.dispose();
+    for (final c in [
+      organizationController, usernameController, passwordController,
+      companyCodeController, quickPinController, setupCompanyCodeController,
+      setupUsernameController, createPinController,
+      confirmPinController, emailForgotPassController,
+      quickPinEmailController, quickPinOtpController,
+    ]) { c.dispose(); }
     super.dispose();
   }
 
-  InputDecoration inputDecoration({
-    required String hint,
-    required IconData icon,
-    Widget? suffixIcon,
-  }) {
-    return InputDecoration(
-      hintText: hint,
-      hintStyle: const TextStyle(
-        color: Color(0xff9CA3AF),
-        fontSize: 14,
-        fontWeight: FontWeight.w500,
-      ),
-      prefixIcon: Container(
-        margin: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: AppColors.primaryLight.withOpacity(0.12),
-          borderRadius: BorderRadius.circular(12),
+  // ── snack ───────────────────────────────────────────────────
+  void showSnack(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      behavior: SnackBarBehavior.floating,
+      margin: const EdgeInsets.all(16),
+      backgroundColor: _T.purple,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      content: Row(children: [
+        Container(
+          width: 28, height: 28,
+          decoration: BoxDecoration(gradient: _T.heroGrad, borderRadius: BorderRadius.circular(8)),
+          child: const Icon(Icons.info_outline_rounded, color: AppColors.card, size: 16),
         ),
-        child: Icon(icon, color: AppColors.primaryLight, size: 21),
-      ),
-      suffixIcon: suffixIcon,
-      filled: true,
-      fillColor: const Color(0xffF8FAFC),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(18),
-        borderSide: BorderSide.none,
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(18),
-        borderSide: const BorderSide(color: Color(0xffE5E7EB)),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(18),
-        borderSide:  BorderSide(
-          color: AppColors.primaryLight,
-          width: 1.7,
-        ),
-      ),
-    );
+        const SizedBox(width: 10),
+        Flexible(child: Text(msg, style: const TextStyle(fontWeight: FontWeight.w600))),
+      ]),
+    ));
   }
 
-  void userLogin() async{
-    loginWithoutPin();
-  }
-
-
-
-  void showLoadingDialog(BuildContext context) {
+  // ── loading ─────────────────────────────────────────────────
+  void showLoadingDialog(BuildContext ctx) {
     showDialog(
-      context: context,
+      context: ctx,
       barrierDismissible: false,
-      barrierColor: Colors.black.withOpacity(0.12),
-      builder: (context) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Center(
-
-              child: Lottie.asset(
-                'assets/animation/loading.json',
-                fit: BoxFit.cover,
-
-              ),
-            ),
-          ],
-        );
-      },
+      barrierColor: AppColors.primaryDeep.withOpacity(0.5),
+      builder: (_) => Center(
+        child: Lottie.asset('assets/animation/loading.json', fit: BoxFit.cover),
+      ),
     );
   }
 
-  loginWithoutPin() async{
+  // ════════════════════════════════════════════════════════════
+  //  USER LOGIN LOGIC — UNCHANGED
+  // ════════════════════════════════════════════════════════════
 
+  void userLogin() async => loginWithoutPin();
+
+  loginWithoutPin() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('rememberMe', rememberMe);
     var fcmToken = prefs.getString('FCM_tokel');
-    setState(() {});
-    await prefs.setString('organizationName', organizationController.text);
-    await prefs.setString('userName', usernameController.text);
 
+    await saveCompanyCodeToPrefs(organizationController.text);
+    await prefs.setString('userName', usernameController.text);
 
     showLoadingDialog(context);
 
@@ -183,157 +821,113 @@ class _LoginScreenState extends State<LoginScreen> {
     };
 
     Map<String, dynamic> body = {
-
       "username": usernameController.text.trim(),
       "password": passwordController.text.trim(),
       "remember_me": rememberMe,
-      "fcm_token":fcmToken,
+      "login_from":"mobile",
+      "fcm_token": fcmToken,
     };
 
     try {
       final response = await ApiMethod.postRequest(
-        url: ApiUrls.loginUrl,
-        headers: headers,
-        body: body,
-      );
-
-      print("Response: $response['status']");
-      print("Response data: $response");
+          url: ApiUrls.loginUrl, headers: headers, body: body);
 
       if (response["statusCode"] == 200) {
         Navigator.pop(context);
 
-        var challenge_id =  response['data']['otp_challenge_id'];
+        var challengeId = response['data']['otp_challenge_id'];
+        if (challengeId != null) {
+          _showPinDialog(challengeId);
+        } else {
+          var auth = response['data'];
 
-        if(challenge_id != null){
-          _showPinDialog(challenge_id);
+          if (auth['must_change_password'] == true) {
+            final resetToken = auth['password_reset_token'];
+
+            if (resetToken == null || resetToken
+                .toString()
+                .isEmpty) {
+              showSnack("Password reset token missing");
+              return;
+            }
+
+            _showMustChangePasswordDialog(resetToken.toString());
+            return;
+          }
+
+          final challengeId = auth['otp_challenge_id'];
+
+          if (challengeId != null) {
+            _showPinDialog(challengeId);
+          } else {
+            final p = await SharedPreferences.getInstance();
+            await p.setString('auth_token', auth['access_token']);
+            await saveCompanyCodeToPrefs(organizationController.text);
+            await p.setString('full_name', auth['full_name']);
+
+            await p.setString('role', auth['role']);
+
+            await saveCompanyLogoUrlToPrefs(auth['company_logo']);
+
+            Navigator.pushReplacement(context,
+                MaterialPageRoute(builder: (_) =>
+                    DashboardShell(token: auth['access_token'])));
+          }
         }
-        else{
-          var auth_token = response['data'];
-          print("auth_token=== ${auth_token['access_token']}");
-
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('auth_token', auth_token['access_token']);
-          await prefs.setString('tenant_slug', organizationController.text.trim());
-          await prefs.setString('full_name', auth_token['full_name']);
-
-          Navigator.pushReplacement(context,
-            MaterialPageRoute(
-              builder: (context) => DashboardShell(token: auth_token['access_token']),
-            ),
-          );
-        }
-
-      }if (response["statusCode"] != 200) {
-
-        ScaffoldMessenger.of(
-            this.context)
-            .showSnackBar(
-          SnackBar(
-            behavior:
-            SnackBarBehavior
-                .floating,
-            backgroundColor:
-            AppColors
-                .primaryDark,
-            shape:
-            RoundedRectangleBorder(
-              borderRadius:
-              BorderRadius
-                  .circular(
-                  14),
-            ),
-            content:
-            Text(
-              "${response["data"]['detail']}",
-            ),
-          ),
-        );
-        Navigator.pop(context);
-
       }
-
+      if (response["statusCode"] != 200) {
+        showSnack("${response["data"]['detail']}");
+        Navigator.pop(context);
+      }
     } catch (e) {
       Navigator.pop(context);
-      print("Error==${e}");
     }
-
   }
 
-  void _showPinDialog(String challengeId) {
-    int secondsRemaining = 60;
-    bool canResend = false;
-    bool dialogActive = true;
+  void _showMustChangePasswordDialog(String resetToken) {
+    final newPasswordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
 
-    final pinController = TextEditingController();
-    Timer? resendTimer;
-
-    void stopTimer() {
-      dialogActive = false;
-      resendTimer?.cancel();
-      resendTimer = null;
-    }
+    bool obscureNewPassword = true;
+    bool obscureConfirmPassword = true;
+    bool isSubmitting = false;
 
     showGeneralDialog(
       context: context,
       barrierDismissible: false,
-      barrierLabel: "OTP",
-      barrierColor: Colors.black.withOpacity(0.55),
-      transitionDuration: const Duration(milliseconds: 280),
-      pageBuilder: (_, __, ___) {
-        return const SizedBox.shrink();
-      },
-      transitionBuilder: (dialogContext, animation, secondaryAnimation, child) {
-        final curved = CurvedAnimation(
-          parent: animation,
-          curve: Curves.easeOutCubic,
+      barrierLabel: "Change Password",
+      barrierColor: AppColors.primaryDeep.withOpacity(0.65),
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (_, __, ___) => const SizedBox.shrink(),
+      transitionBuilder: (dialogCtx, anim, _, __) {
+        final curve = CurvedAnimation(
+          parent: anim,
+          curve: Curves.easeOutBack,
         );
 
         return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            resendTimer ??= Timer.periodic(
-              const Duration(seconds: 1),
-                  (timer) {
-                if (!dialogActive || !dialogContext.mounted) {
-                  timer.cancel();
-                  return;
-                }
-
-                if (secondsRemaining > 0) {
-                  setStateDialog(() {
-                    secondsRemaining--;
-                  });
-                } else {
-                  timer.cancel();
-
-                  if (!dialogActive || !dialogContext.mounted) return;
-
-                  setStateDialog(() {
-                    canResend = true;
-                  });
-                }
-              },
-            );
-
+          builder: (ctx, setDialogState) {
             return Transform.scale(
-              scale: curved.value,
+              scale: curve.value,
               child: Opacity(
-                opacity: curved.value,
+                opacity: anim.value,
                 child: Center(
                   child: Material(
                     color: Colors.transparent,
                     child: Container(
-                      width: MediaQuery.of(context).size.width * 0.88,
+                      width: MediaQuery.of(context).size.width * 0.90,
                       padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(30),
+                        color: AppColors.card,
+                        borderRadius: BorderRadius.circular(34),
+                        border: Border.all(
+                          color: AppColors.border.withOpacity(0.55),
+                        ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.12),
-                            blurRadius: 30,
-                            spreadRadius: 2,
-                            offset: const Offset(0, 12),
+                            color: AppColors.primaryDeep.withOpacity(0.22),
+                            blurRadius: 55,
+                            offset: const Offset(0, 24),
                           ),
                         ],
                       ),
@@ -343,187 +937,173 @@ class _LoginScreenState extends State<LoginScreen> {
                           children: [
                             Row(
                               children: [
-                                Container(
-                                  width: 58,
-                                  height: 58,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(18),
-                                    gradient: AppColors.headerGradient,
-                                  ),
-                                  child: const Icon(
-                                    Icons.verified_user_rounded,
-                                    color: Colors.white,
-                                    size: 28,
-                                  ),
-                                ),
+                                _gradBox(Icons.lock_reset_rounded),
                                 const Spacer(),
-                                InkWell(
-                                  borderRadius: BorderRadius.circular(14),
-                                  onTap: () {
-                                    stopTimer();
-                                    Navigator.pop(dialogContext);
-                                  },
-                                  child: Container(
-                                    padding: const EdgeInsets.all(10),
-                                    decoration: BoxDecoration(
-                                      color: Colors.red.withOpacity(0.08),
-                                      borderRadius: BorderRadius.circular(14),
-                                    ),
-                                    child: const Icon(
-                                      Icons.close_rounded,
-                                      color: Colors.red,
-                                      size: 20,
-                                    ),
-                                  ),
-                                ),
                               ],
                             ),
-
-                            const SizedBox(height: 28),
+                            const SizedBox(height: 22),
 
                             const Align(
                               alignment: Alignment.centerLeft,
                               child: Text(
-                                "OTP Verification",
+                                "Change Password",
                                 style: TextStyle(
-                                  fontSize: 26,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.primaryDeep,
+                                  fontSize: 23,
+                                  fontWeight: FontWeight.w900,
+                                  color: _T.textMain,
+                                  letterSpacing: -0.3,
                                 ),
                               ),
                             ),
 
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 8),
 
                             Align(
                               alignment: Alignment.centerLeft,
                               child: Text(
-                                "Enter the 6-digit OTP sent to your registered email.",
+                                "Your password must be changed before continuing.",
                                 style: TextStyle(
-                                  fontSize: 14.5,
-                                  height: 1.5,
-                                  color: Colors.grey.shade600,
-                                  fontWeight: FontWeight.w500,
+                                  fontSize: 13,
+                                  height: 1.6,
+                                  color: AppColors.textSoft,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ),
 
-                            const SizedBox(height: 30),
+                            const SizedBox(height: 22),
 
-                            Pinput(
-                              controller: pinController,
-                              length: 6,
-                              keyboardType: TextInputType.number,
+                            _dlgField(
+                              ctrl: newPasswordController,
+                              hint: "New Password",
+                              icon: Icons.lock_rounded,
+                              obscure: obscureNewPassword,
+                              suffix: IconButton(
+                                icon: Icon(
+                                  obscureNewPassword
+                                      ? Icons.visibility_off_rounded
+                                      : Icons.visibility_rounded,
+                                  color: _T.textHint,
+                                  size: 20,
+                                ),
+                                onPressed: () {
+                                  setDialogState(() {
+                                    obscureNewPassword = !obscureNewPassword;
+                                  });
+                                },
+                              ),
                             ),
 
                             const SizedBox(height: 14),
 
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  "Didn't receive OTP?",
-                                  style: TextStyle(
-                                    color: Colors.grey.shade600,
-                                    fontSize: 13.5,
-                                    fontWeight: FontWeight.w500,
-                                  ),
+                            _dlgField(
+                              ctrl: confirmPasswordController,
+                              hint: "Confirm Password",
+                              icon: Icons.lock_reset_rounded,
+                              obscure: obscureConfirmPassword,
+                              suffix: IconButton(
+                                icon: Icon(
+                                  obscureConfirmPassword
+                                      ? Icons.visibility_off_rounded
+                                      : Icons.visibility_rounded,
+                                  color: _T.textHint,
+                                  size: 20,
                                 ),
-                                const SizedBox(width: 6),
-                                TextButton(
-                                  onPressed: canResend
-                                      ? () async {
-                                    showLoadingDialog(context);
-                                    pinController.clear();
-
-                                    await resendOTP(challengeId);
-
-                                    if (!dialogActive || !dialogContext.mounted) return;
-
-                                    setStateDialog(() {
-                                      secondsRemaining = 20;
-                                      canResend = false;
-                                    });
-
-                                    resendTimer?.cancel();
-                                    resendTimer = Timer.periodic(
-                                      const Duration(seconds: 1),
-                                          (timer) {
-                                        if (!dialogActive || !dialogContext.mounted) {
-                                          timer.cancel();
-                                          return;
-                                        }
-
-                                        if (secondsRemaining > 0) {
-                                          setStateDialog(() {
-                                            secondsRemaining--;
-                                          });
-                                        } else {
-                                          timer.cancel();
-
-                                          if (!dialogActive || !dialogContext.mounted) return;
-
-                                          setStateDialog(() {
-                                            canResend = true;
-                                          });
-                                        }
-                                      },
-                                    );
-                                  }
-                                      : null,
-                                  child: Text(
-                                    canResend
-                                        ? "Resend"
-                                        : "00:${secondsRemaining.toString().padLeft(2, '0')}",
-                                  ),
-                                ),
-                              ],
+                                onPressed: () {
+                                  setDialogState(() {
+                                    obscureConfirmPassword =
+                                    !obscureConfirmPassword;
+                                  });
+                                },
+                              ),
                             ),
 
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 24),
 
                             SizedBox(
                               width: double.infinity,
-                              height: 58,
+                              height: 50,
                               child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.primaryDark,
-                                  elevation: 0,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(18),
-                                  ),
-                                ),
-                                onPressed: () async {
-                                  if (pinController.text.length != 6) {
-                                    ScaffoldMessenger.of(this.context).showSnackBar(
-                                      SnackBar(
-                                        behavior: SnackBarBehavior.floating,
-                                        backgroundColor: AppColors.primaryDark,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(14),
-                                        ),
-                                        content: const Text("Please enter 6 digit PIN"),
-                                      ),
+                                onPressed: isSubmitting
+                                    ? null
+                                    : () async {
+                                  final newPassword =
+                                  newPasswordController.text.trim();
+                                  final confirmPassword =
+                                  confirmPasswordController.text.trim();
+
+                                  if (newPassword.isEmpty ||
+                                      confirmPassword.isEmpty) {
+                                    showSnack(
+                                      "Please enter both password fields",
                                     );
                                     return;
                                   }
 
-                                  stopTimer();
-                                  showLoadingDialog(context);
+                                  if (newPassword.length < 8) {
+                                    showSnack(
+                                      "Password must be at least 8 characters",
+                                    );
+                                    return;
+                                  }
 
-                                  verifyOtpWithServer(
-                                    challengeId,
-                                    pinController.text,
+                                  if (newPassword != confirmPassword) {
+                                    showSnack("Passwords do not match");
+                                    return;
+                                  }
+
+                                  setDialogState(() {
+                                    isSubmitting = true;
+                                  });
+
+                                  await _submitForcedPasswordChange(
+                                    dialogCtx: dialogCtx,
+                                    resetToken: resetToken,
+                                    newPassword: newPassword,
+                                    confirmPassword: confirmPassword,
                                   );
+
+                                  if (ctx.mounted && Navigator.of(dialogCtx).canPop()) {
+                                    setDialogState(() {
+                                      isSubmitting = false;
+                                    });
+                                  }
                                 },
-                                child: const Text(
-                                  "Verify OTP",
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: _T.purple,
+                                  foregroundColor: AppColors.card,
+                                  elevation: 0,
+                                  shape: const StadiumBorder(),
+                                ),
+                                child: isSubmitting
+                                    ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.4,
                                     color: Colors.white,
                                   ),
+                                )
+                                    : const Text(
+                                  "Submit",
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.2,
+                                  ),
                                 ),
+                              ),
+                            ),
+
+                            const SizedBox(height: 14),
+
+                            Text(
+                              "You cannot continue until your password is changed.",
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: AppColors.textSoft.withOpacity(0.75),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ],
@@ -537,111 +1117,484 @@ class _LoginScreenState extends State<LoginScreen> {
           },
         );
       },
-    ).then((_) {
-      stopTimer();
-    });
+    );
   }
 
-  resendOTP(String challenge_id) async {
-
-    Map<String, String> headers = {
-      "X-Tenant-Slug":
-      organizationController.text
-          .trim(),
-      "Content-Type":
-      "application/json",
-    };
-
-    Map<String, dynamic> body = {
-      "challenge_id": challenge_id,
-
-    };
-
+  Future<void> _submitForcedPasswordChange({
+    required BuildContext dialogCtx,
+    required String resetToken,
+    required String newPassword,
+    required String confirmPassword,
+  }) async {
     try {
-
-      final response =
-      await ApiMethod.postRequest(
-        url: ApiUrls.resendOTP,
-        headers: headers,
-        body: body,
+      final response = await ApiMethod.postRequest(
+        url: resetPassword,
+        headers: {
+          "X-Tenant-Slug": organizationController.text.trim(),
+          "Content-Type": "application/json",
+        },
+        body: {
+          "token": resetToken,
+          "new_password": newPassword,
+          "confirm_password": confirmPassword,
+        },
       );
 
-
-
       if (response["statusCode"] == 200) {
-        Navigator.pop(context);
+        final data = response["data"];
 
-      }
+        if (Navigator.of(dialogCtx).canPop()) {
+          Navigator.of(dialogCtx).pop();
+        }
 
-    } catch (e) {
-      Navigator.pop(context);
-      print(e);
-    }
+        passwordController.clear();
 
-  }
-
-  verifyOtpWithServer(String challenge_id,otp) async {
-
-    Map<String, String> headers = {
-      "X-Tenant-Slug":
-      organizationController.text
-          .trim(),
-      "Content-Type":
-      "application/json",
-    };
-
-    Map<String, dynamic> body = {
-      "challenge_id": challenge_id,
-      "otp": otp,
-    };
-
-    try {
-
-      final response =
-      await ApiMethod.postRequest(
-        url: ApiUrls.otpVerify,
-        headers: headers,
-        body: body,
-      );
-
-      print("response===ajih= ${response}");
-
-
-      if (response["statusCode"] == 200) {
-        var auth_token = response['data'];
-        print("auth_token=== ${auth_token['access_token']}");
-
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('auth_token', auth_token['access_token']);
-        await prefs.setString('tenant_slug', organizationController.text.trim());
-        await prefs.setString('organizationName', organizationController.text.trim());
-        await prefs.setString('userName', usernameController.text.trim());
-
-        Navigator.pop(context);
-
-        Navigator.pushReplacement(context,
-          MaterialPageRoute(
-            builder: (context) => DashboardShell(token: auth_token['access_token']),
-          ),
+        showSnack(
+          data?["message"] ??
+              "Password changed successfully. Please login again.",
         );
+        return;
+      } else {
+        final detail = response["data"]?["detail"] ??
+            response["data"]?["message"] ??
+            "Password reset failed";
+
+        showSnack(detail.toString());
       }
-
     } catch (e) {
-      Navigator.pop(context);
-      Navigator.pop(context);
-      print(e);
+      showSnack("Something went wrong. Please try again.");
     }
-
   }
 
-  void quickPinLogin() async {
+  void _showPinDialog(String challengeId) {
+    int sec = 60;
+    bool canResend = false;
+    bool active = true;
+    final pinCtrl = TextEditingController();
+    Timer? timer;
+
+    void stopTimer() { active = false; timer?.cancel(); }
+
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierLabel: "OTP",
+      barrierColor: AppColors.primaryDeep.withOpacity(0.7),
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (_, __, ___) => const SizedBox.shrink(),
+      transitionBuilder: (dCtx, anim, _, __) {
+        final c = CurvedAnimation(parent: anim, curve: Curves.easeOutBack);
+        return StatefulBuilder(builder: (_, setD) {
+          timer ??= Timer.periodic(const Duration(seconds: 1), (t) {
+            if (!active || !dCtx.mounted) { t.cancel(); return; }
+            if (sec > 0) { setD(() => sec--); }
+            else { t.cancel(); if (!active || !dCtx.mounted) return; setD(() => canResend = true); }
+          });
+
+          return Transform.scale(
+            scale: c.value,
+            child: Opacity(
+              opacity: anim.value,
+              child: Center(
+                child: Material(
+                  color: AppColors.card.withOpacity(0),
+                  child: Container(
+                    width: MediaQuery.of(context).size.width * 0.88,
+                    padding: const EdgeInsets.all(26),
+                    decoration: BoxDecoration(
+                      color: AppColors.card,
+                      borderRadius: BorderRadius.circular(32),
+                      boxShadow: [BoxShadow(color: AppColors.primaryDeep.withOpacity(0.2), blurRadius: 50, offset: const Offset(0, 20))],
+                    ),
+                    child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      Row(children: [
+                        _gradBox(Icons.verified_user_rounded),
+                        const Spacer(),
+                        _xBtn(() { stopTimer(); Navigator.pop(dCtx); }),
+                      ]),
+                      const SizedBox(height: 22),
+                      const Align(alignment: Alignment.centerLeft,
+                          child: Text("OTP Verification",
+                              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: _T.textMain))),
+                      const SizedBox(height: 8),
+                      Align(alignment: Alignment.centerLeft,
+                          child: Text("Enter the 6-digit OTP sent to your registered email.",
+                              style: TextStyle(fontSize: 13.5, height: 1.6, color: AppColors.textSoft, fontWeight: FontWeight.w500))),
+                      const SizedBox(height: 28),
+                      Pinput(
+                        controller: pinCtrl,
+                        length: 6,
+                        keyboardType: TextInputType.number,
+                        defaultPinTheme: PinTheme(
+                          width: 44, height: 52,
+                          textStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _T.textMain),
+                          decoration: BoxDecoration(
+                            color: _T.fieldBg,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: _T.fieldBdr, width: 1.5),
+                          ),
+                        ),
+                        focusedPinTheme: PinTheme(
+                          width: 44, height: 52,
+                          textStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _T.purple),
+                          decoration: BoxDecoration(
+                            color: AppColors.bg,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: _T.purple, width: 2),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                        Text("Didn't receive OTP?",
+                            style: TextStyle(color: AppColors.textSoft, fontSize: 13, fontWeight: FontWeight.w500)),
+                        const SizedBox(width: 4),
+                        TextButton(
+                          onPressed: canResend ? () async {
+                            showLoadingDialog(context);
+                            pinCtrl.clear();
+                            await resendOTP(challengeId);
+                            if (!active || !dCtx.mounted) return;
+                            setD(() { sec = 20; canResend = false; });
+                            timer?.cancel();
+                            timer = Timer.periodic(const Duration(seconds: 1), (t) {
+                              if (!active || !dCtx.mounted) { t.cancel(); return; }
+                              if (sec > 0) { setD(() => sec--); }
+                              else { t.cancel(); if (!active || !dCtx.mounted) return; setD(() => canResend = true); }
+                            });
+                          } : null,
+                          style: TextButton.styleFrom(foregroundColor: _T.purple,
+                              textStyle: const TextStyle(fontWeight: FontWeight.w700)),
+                          child: Text(canResend ? "Resend" : "00:${sec.toString().padLeft(2, '0')}"),
+                        ),
+                      ]),
+                      const SizedBox(height: 10),
+                      _mainBtn(label: "Verify OTP", onPressed: () async {
+                        if (pinCtrl.text.length != 6) { showSnack("Please enter 6-digit OTP"); return; }
+                        stopTimer();
+                        showLoadingDialog(context);
+                        verifyOtpWithServer(challengeId, pinCtrl.text);
+                      }),
+                    ])),
+                  ),
+                ),
+              ),
+            ),
+          );
+        });
+      },
+    ).then((_) => stopTimer());
+  }
+
+  resendOTP(String challengeId) async {
+    try {
+      final r = await ApiMethod.postRequest(
+        url: ApiUrls.resendOTP,
+        headers: {"X-Tenant-Slug": organizationController.text.trim(), "Content-Type": "application/json"},
+        body: {"challenge_id": challengeId},
+      );
+      if (r["statusCode"] == 200) Navigator.pop(context);
+    } catch (_) { Navigator.pop(context); }
+  }
+
+  verifyOtpWithServer(String challengeId, otp) async {
+    try {
+      final r = await ApiMethod.postRequest(
+        url: ApiUrls.otpVerify,
+        headers: {"X-Tenant-Slug": organizationController.text.trim(), "Content-Type": "application/json"},
+        body: {"challenge_id": challengeId, "otp": otp},
+      );
+      if (r["statusCode"] == 200) {
+        var auth = r['data'];
+        final p = await SharedPreferences.getInstance();
+        await p.setString('auth_token', auth['access_token']);
+        await saveCompanyCodeToPrefs(organizationController.text);
+        await p.setString('userName', usernameController.text.trim());
+
+        await saveCompanyLogoUrlToPrefs(auth['company_logo']);
+
+        Navigator.pop(context);
+        Navigator.pushReplacement(context,
+            MaterialPageRoute(builder: (_) => DashboardShell(token: auth['access_token'])));
+      }
+    } catch (_) { Navigator.pop(context); Navigator.pop(context); }
+  }
+
+  // ════════════════════════════════════════════════════════════
+  //  NEW QUICK PIN FLOW
+  // ════════════════════════════════════════════════════════════
+
+  /// STEP 1 — verify account & send OTP to registered email.
+  /// POST /auth/quick-pin/verify-account  body {username, email}
+  /// On success: store company code + username, keep challenge_id.
+  Future<void> quickPinVerifyAccount() async {
     FocusScope.of(context).unfocus();
 
-    if (companyCodeController.text.trim().isEmpty) {
+    final companyCode = setupCompanyCodeController.text.trim();
+    final username = setupUsernameController.text.trim();
+    final email = quickPinEmailController.text.trim();
+
+    if (companyCode.isEmpty) {
       showSnack("Please enter company code");
       return;
     }
+    if (username.isEmpty) {
+      showSnack("Please enter username / employee code");
+      return;
+    }
+    if (email.isEmpty) {
+      showSnack("Please enter email ID");
+      return;
+    }
+    if (!email.contains("@")) {
+      showSnack("Please enter a valid email ID");
+      return;
+    }
 
+    showLoadingDialog(context);
+
+    try {
+      final r = await ApiMethod.postRequest(
+        url: quickPinVerifyAccountUrl,
+        headers: {
+          "X-Tenant-Slug": companyCode,
+          "Content-Type": "application/json",
+        },
+        body: {
+          "username": username,
+          "email": email,
+        },
+      );
+
+      Navigator.pop(context); // close loading
+
+      final data = r["data"];
+
+      if (r["statusCode"] == 200) {
+        quickPinChallengeId = data?["challenge_id"]?.toString();
+        quickPinMaskedEmail = data?["otp_delivery_target"]?.toString();
+
+        if (quickPinChallengeId == null || quickPinChallengeId!.isEmpty) {
+          showSnack("Challenge ID missing. Please try again");
+          return;
+        }
+
+        // store company code + username for later quick pin login
+        await saveCompanyCodeToPrefs(companyCode);
+        await saveQuickPinUsernameToPrefs(
+          (data?["username"]?.toString().isNotEmpty ?? false)
+              ? data!["username"].toString()
+              : username,
+        );
+
+        quickPinOtpController.clear();
+
+        setState(() {
+          isQuickPinOtpMode = true;
+          isCreatePinMode = false;
+        });
+
+        showSnack(
+          "OTP sent to ${quickPinMaskedEmail ?? 'your registered email'}",
+        );
+      } else {
+        // show whatever the server responded with
+        showSnack(
+          data?["detail"]?.toString() ??
+              data?["message"]?.toString() ??
+              "Failed to send OTP",
+        );
+      }
+    } catch (e) {
+      Navigator.pop(context);
+      showSnack("Something went wrong");
+    }
+  }
+
+  /// STEP 2 — verify OTP.
+  /// POST /auth/quick-pin/verify-otp  body {challenge_id, otp}
+  /// On success: keep setup_token.
+  Future<void> quickPinVerifyOtp() async {
+    FocusScope.of(context).unfocus();
+
+    final companyCode = setupCompanyCodeController.text.trim();
+    final otp = quickPinOtpController.text.trim();
+
+    if (companyCode.isEmpty) {
+      showSnack("Company code missing");
+      return;
+    }
+    if (otp.length != 6) {
+      showSnack("Please enter 6-digit OTP");
+      return;
+    }
+    if (quickPinChallengeId == null || quickPinChallengeId!.isEmpty) {
+      showSnack("Challenge expired. Please send OTP again");
+      return;
+    }
+
+    showLoadingDialog(context);
+
+    try {
+      final r = await ApiMethod.postRequest(
+        url: quickPinVerifyOtpUrl,
+        headers: {
+          "X-Tenant-Slug": companyCode,
+          "Content-Type": "application/json",
+        },
+        body: {
+          "challenge_id": quickPinChallengeId,
+          "otp": otp,
+        },
+      );
+
+      Navigator.pop(context); // close loading
+
+      final data = r["data"];
+
+      if (r["statusCode"] == 200) {
+        quickPinSetupToken = data?["setup_token"]?.toString();
+
+        if (quickPinSetupToken == null || quickPinSetupToken!.isEmpty) {
+          showSnack("Setup token missing. Please try again");
+          return;
+        }
+
+        // make sure stored username matches verified account
+        if ((data?["username"]?.toString().isNotEmpty ?? false)) {
+          await saveQuickPinUsernameToPrefs(data!["username"].toString());
+        }
+        if ((data?["company_code"]?.toString().isNotEmpty ?? false)) {
+          await saveCompanyCodeToPrefs(data!["company_code"].toString());
+        }
+
+        setState(() {
+          isQuickPinOtpMode = false;
+          isCreatePinMode = true;
+        });
+
+        showSnack("OTP verified successfully");
+      } else {
+        showSnack(
+          data?["detail"]?.toString() ??
+              data?["message"]?.toString() ??
+              "Invalid OTP",
+        );
+      }
+    } catch (e) {
+      Navigator.pop(context);
+      showSnack("Something went wrong");
+    }
+  }
+
+  /// STEP 3 — set 4 digit PIN.
+  /// POST /auth/quick-pin/set  body {setup_token, pin, confirm_pin}
+  /// Close bottom sheet only when ok == true.
+  void saveQuickPin() async {
+    FocusScope.of(context).unfocus();
+
+    final companyCode = setupCompanyCodeController.text.trim();
+    final pin = createPinController.text.trim();
+    final confirmPin = confirmPinController.text.trim();
+
+    if (pin.length != 4 || confirmPin.length != 4) {
+      showSnack("PIN must be 4 digits");
+      return;
+    }
+    if (pin != confirmPin) {
+      showSnack("PINs do not match");
+      return;
+    }
+    if (quickPinSetupToken == null || quickPinSetupToken!.isEmpty) {
+      showSnack("Setup token expired. Please send OTP again");
+      return;
+    }
+
+    showLoadingDialog(context);
+
+    try {
+      final r = await ApiMethod.postRequest(
+        url: quickPinSetUrl,
+        headers: {
+          "X-Tenant-Slug": companyCode,
+          "Content-Type": "application/json",
+        },
+        body: {
+          "setup_token": quickPinSetupToken,
+          "pin": pin,
+          "confirm_pin": confirmPin,
+        },
+      );
+
+      Navigator.pop(context); // close loading
+
+      final data = r["data"];
+
+      if (r["statusCode"] == 200 && data?["ok"] == true) {
+        await saveCompanyCodeToPrefs(companyCode);
+
+        showSnack(
+          data?["message"]?.toString() ?? "Quick PIN saved successfully.",
+        );
+
+        setState(() {
+          isCreatePinMode = false;
+          isQuickPinOtpMode = false;
+          isQuickPinTab = true;
+
+          quickPinController.clear();
+          createPinController.clear();
+          confirmPinController.clear();
+          quickPinEmailController.clear();
+          quickPinOtpController.clear();
+          setupUsernameController.clear();
+
+          quickPinSetupToken = null;
+          quickPinChallengeId = null;
+          quickPinMaskedEmail = null;
+        });
+
+        // close bottom sheet (only happens when ok == true)
+        Navigator.pop(context);
+      } else {
+        showSnack(
+          data?["detail"]?.toString() ??
+              data?["message"]?.toString() ??
+              "Failed to create Quick PIN",
+        );
+      }
+    } catch (e) {
+      Navigator.pop(context);
+      showSnack("Something went wrong");
+    }
+  }
+
+  /// QUICK PIN LOGIN.
+  /// employee_code + X-Tenant-Slug read from SharedPreferences.
+  /// POST /auth/quick-pin/login  body {employee_code, pin}
+  void quickPinLogin() async {
+    FocusScope.of(context).unfocus();
+
+    final prefs = await SharedPreferences.getInstance();
+
+    final companyCode = (prefs.getString('company_code') ??
+        prefs.getString('tenant_slug') ??
+        companyCodeController.text.trim())
+        .trim();
+
+    final employeeCode = (prefs.getString('quick_pin_username') ??
+        prefs.getString('userName') ??
+        "")
+        .trim();
+
+    if (companyCode.isEmpty) {
+      showSnack("Company code missing. Please set Quick PIN first");
+      return;
+    }
+    if (employeeCode.isEmpty) {
+      showSnack("Employee code missing. Please set Quick PIN first");
+      return;
+    }
     if (quickPinController.text.length != 4) {
       showSnack("PIN must be exactly 4 digits");
       return;
@@ -649,527 +1602,725 @@ class _LoginScreenState extends State<LoginScreen> {
 
     showLoadingDialog(context);
 
-    final deviceUuid = await getDeviceUUID();
-
-    Map<String, String> headers = {
-      "X-Tenant-Slug": companyCodeController.text.trim(),
-      "X-Device-UUID": deviceUuid,
-      "Content-Type": "application/json",
-    };
-
-    Map<String, dynamic> body = {
-      "pin": quickPinController.text.trim(),
-      "remember_me": rememberMe,
-    };
-
     try {
-      final response = await ApiMethod.postRequest(
-        url: "$quickPinBaseUrl/auth/quick-pin/login",
-        headers: headers,
-        body: body,
+      final r = await ApiMethod.postRequest(
+        url: quickPinLoginUrl,
+        headers: {
+          "X-Tenant-Slug": companyCode,
+          "Content-Type": "application/json",
+        },
+        body: {
+          "employee_code": employeeCode,
+          "pin": quickPinController.text.trim(),
+        },
       );
 
-      Navigator.pop(context);
+      Navigator.pop(context); // close loading
 
-      if (response["statusCode"] == 200) {
-        final data = response["data"];
+      if (r["statusCode"] == 200) {
+        final d = r["data"];
+        final p = await SharedPreferences.getInstance();
 
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString("auth_token", data["access_token"]);
-        await prefs.setString("tenant_slug", companyCodeController.text.trim());
-        await prefs.setString("organizationName", companyCodeController.text.trim());
+        await p.setString("auth_token", d["access_token"]);
+        await saveCompanyCodeToPrefs(companyCode);
+        await p.setString('userName', employeeCode);
+
+        if (d['full_name'] != null) {
+          await p.setString('full_name', d['full_name'].toString());
+        }
+        if (d['role'] != null) {
+          await p.setString('role', d['role'].toString());
+        }
+        if (d['company_logo'] != null) {
+          await saveCompanyLogoUrlToPrefs(d['company_logo']);
+        }
 
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => DashboardShell(token: data["access_token"]),
+            builder: (_) => DashboardShell(token: d["access_token"]),
           ),
         );
       } else {
-        showSnack(response["data"]?["detail"] ?? "Quick PIN login failed");
+        showSnack(
+          r["data"]?["detail"]?.toString() ??
+              r["data"]?["message"]?.toString() ??
+              "Quick PIN login failed",
+        );
       }
-    } catch (e) {
+    } catch (_) {
       Navigator.pop(context);
       showSnack("Something went wrong");
-      print(e);
     }
   }
 
-  Future<void> verifyUserAndAllowPinSetup() async {
-    if (setupCompanyCodeController.text.trim().isEmpty ||
-        setupUsernameController.text.trim().isEmpty ||
-        setupPasswordController.text.trim().isEmpty) {
-      showSnack("Please fill all fields");
-      return;
-    }
-
-    showLoadingDialog(context);
-
-    final deviceUuid = await getDeviceUUID();
-
-    Map<String, String> headers = {
-      "X-Tenant-Slug": setupCompanyCodeController.text.trim(),
-      "X-Device-UUID": deviceUuid,
-      "Content-Type": "application/json",
-    };
-
-    Map<String, dynamic> body = {
-      "username": setupUsernameController.text.trim(),
-      "password": setupPasswordController.text.trim(),
-    };
-
+  void sendRequistForgotPassword() async {
     try {
-      final response = await ApiMethod.postRequest(
-        url: "$quickPinBaseUrl/auth/quick-pin/verify-account",
-        headers: headers,
-        body: body,
+      final r = await ApiMethod.postRequest(
+        url: ApiUrls.resendOTP,
+        headers: {"X-Tenant-Slug": organizationController.text.trim(), "Content-Type": "application/json"},
+        body: {"username": "", "email": ""},
       );
-
-      Navigator.pop(context);
-
-      if (response["statusCode"] == 200) {
-        quickPinSetupToken = response["data"]["setup_token"];
-
-        setState(() {
-          isCreatePinMode = true;
-        });
-      } else {
-        showSnack(response["data"]?["detail"] ?? "Account verification failed");
-      }
-    } catch (e) {
-      Navigator.pop(context);
-      showSnack("Something went wrong");
-      print(e);
-    }
+      if (r["statusCode"] == 200) Navigator.pop(context);
+    } catch (_) { Navigator.pop(context); }
   }
 
-  void saveQuickPin() async {
-    if (createPinController.text.length != 4 ||
-        confirmPinController.text.length != 4) {
-      showSnack("PIN must be exactly 4 digits");
-      return;
-    }
+  // ════════════════════════════════════════════════════════════
+  //  SHARED SMALL WIDGETS
+  // ════════════════════════════════════════════════════════════
 
-    if (createPinController.text != confirmPinController.text) {
-      showSnack("PIN and confirm PIN do not match");
-      return;
-    }
-
-    if (quickPinSetupToken == null) {
-      showSnack("Setup token expired. Please verify again");
-      return;
-    }
-
-    showLoadingDialog(context);
-
-    final deviceUuid = await getDeviceUUID();
-
-    Map<String, String> headers = {
-      "X-Tenant-Slug": setupCompanyCodeController.text.trim(),
-      "X-Device-UUID": deviceUuid,
-      "Content-Type": "application/json",
-    };
-
-    Map<String, dynamic> body = {
-      "setup_token": quickPinSetupToken,
-      "pin": createPinController.text.trim(),
-      "confirm_pin": confirmPinController.text.trim(),
-    };
-
-    try {
-      final response = await ApiMethod.postRequest(
-        url: "$quickPinBaseUrl/auth/quick-pin/set",
-        headers: headers,
-        body: body,
-      );
-
-      Navigator.pop(context);
-
-      if (response["statusCode"] == 200) {
-        showSnack("Quick PIN created successfully");
-
-        setState(() {
-          isCreatePinMode = false;
-          isQuickPinTab = true;
-          companyCodeController.text = setupCompanyCodeController.text.trim();
-          quickPinController.clear();
-          createPinController.clear();
-          confirmPinController.clear();
-          quickPinSetupToken = null;
-        });
-
-        Navigator.pop(context);
-      } else {
-        showSnack(response["data"]?["detail"] ?? "Failed to create Quick PIN");
-      }
-    } catch (e) {
-      Navigator.pop(context);
-      showSnack("Something went wrong");
-      print(e);
-    }
-  }
-
-  void showSnack(String message) {
-    ScaffoldMessenger.of(this.context).showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: AppColors.primaryDark,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
+  Widget _gradBox(IconData icon) => Container(
+    width: 54,
+    height: 54,
+    decoration: BoxDecoration(
+      gradient: _T.heroGrad,
+      borderRadius: BorderRadius.circular(18),
+      boxShadow: [
+        ..._T.logoShadow,
+        BoxShadow(
+          color: _T.purple.withOpacity(0.16),
+          blurRadius: 22,
+          offset: const Offset(0, 12),
         ),
-        content: Text(message),
+      ],
+    ),
+    child: Icon(icon, color: AppColors.card, size: 24),
+  );
+
+  Widget _xBtn(VoidCallback onTap) => InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(14),
+    child: Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: AppColors.primaryDark.withOpacity(0.07),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border.withOpacity(0.7)),
+      ),
+      child: const Icon(Icons.close_rounded, color: AppColors.primaryDark, size: 18),
+    ),
+  );
+
+  Widget _mainBtn({
+    required String label,
+    required VoidCallback onPressed,
+    IconData icon = Icons.arrow_forward_rounded,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      height: 50,
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _T.purple,
+          foregroundColor: AppColors.card,
+          elevation: 0,
+          shadowColor: Colors.transparent,
+          shape: const StadiumBorder(),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.2,
+          ),
+        ),
       ),
     );
   }
 
-  void showForgotPasswordDialog() {
+  Widget _simpleField({
+    required TextEditingController controller,
+    required String hint,
+    bool obscure = false,
+    Widget? suffix,
+    TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
+    int? maxLength,
+    bool showDivider = true,
+    TextCapitalization textCapitalization = TextCapitalization.none,
+  }) {
+    IconData icon;
+    if (hint.toLowerCase().contains("organization")) {
+      icon = Icons.apartment_rounded;
+    } else if (hint.toLowerCase().contains("email") ||
+        hint.toLowerCase().contains("username")) {
+      icon = Icons.person_rounded;
+    } else if (hint.toLowerCase().contains("password")) {
+      icon = Icons.lock_rounded;
+    } else if (hint.toLowerCase().contains("company")) {
+      icon = Icons.business_rounded;
+    } else if (hint.toLowerCase().contains("pin")) {
+      icon = Icons.pin_rounded;
+    } else {
+      icon = Icons.text_fields_rounded;
+    }
 
+    return Container(
+      margin: const EdgeInsets.only(bottom: 7),
+      decoration: BoxDecoration(
+        color: AppColors.bg,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: AppColors.border.withOpacity(0.75),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryDeep.withOpacity(0.035),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: TextField(
+        controller: controller,
+        obscureText: obscure,
+        keyboardType: keyboardType,
+        inputFormatters: inputFormatters,
+        maxLength: maxLength,
+        textCapitalization: textCapitalization,
+        style: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+          color: _T.textMain,
+        ),
+        decoration: InputDecoration(
+          counterText: "",
+          hintText: hint,
+          hintStyle: const TextStyle(
+            color: _T.textHint,
+            fontSize: 13.5,
+            fontWeight: FontWeight.w600,
+          ),
+          prefixIcon: Container(
+            margin: const EdgeInsets.all(8),
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: _T.purple.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              icon,
+              color: _T.purple,
+              size: 19,
+            ),
+          ),
+          suffixIcon: suffix,
+          suffixIconConstraints: const BoxConstraints(
+            minHeight: 24,
+            minWidth: 48,
+          ),
+          filled: true,
+          fillColor: Colors.transparent,
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(
+            vertical: 18,
+            horizontal: 12,
+          ),
+        ),
+      ),
+    );
+  }
+
+  InputDecoration _field({required String hint, required IconData icon, Widget? suffix}) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(color: _T.textHint, fontSize: 13.5, fontWeight: FontWeight.w600),
+      prefixIcon: Container(
+        margin: const EdgeInsets.all(8),
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          color: _T.purple,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [BoxShadow(color: _T.purple.withOpacity(0.12), blurRadius: 14, offset: const Offset(0, 6))],
+        ),
+        child: Icon(icon, color: AppColors.card, size: 19),
+      ),
+      suffixIcon: suffix,
+      filled: true,
+      fillColor: _T.fieldBg,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 19),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(20),
+        borderSide: const BorderSide(color: _T.fieldBdr, width: 1.3),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(20),
+        borderSide: const BorderSide(color: _T.purple, width: 2),
+      ),
+    );
+  }
+
+  Widget _tab(String label, bool active, VoidCallback onTap) => Expanded(
+    child: InkWell(
+      onTap: onTap,
+      splashColor: Colors.transparent,
+      highlightColor: Colors.transparent,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        height: 44,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: active
+                  ? const Color(0xFF1565C0)
+                  : Colors.transparent,
+              width: 2,
+            ),
+          ),
+        ),
+        child: AnimatedDefaultTextStyle(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          style: TextStyle(
+            color: active
+                ? const Color(0xFF1F2937)
+                : const Color(0xFFC7D0DD),
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+          ),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ),
+    ),
+  );
+
+  Widget _dlgField({
+    required TextEditingController ctrl,
+    required String hint,
+    required IconData icon,
+    bool obscure = false,
+    Widget? suffix,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: _T.fieldBg,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _T.fieldBdr, width: 1.4),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryDeep.withOpacity(0.025),
+            blurRadius: 14,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: TextField(
+        controller: ctrl,
+        obscureText: obscure,
+        style: const TextStyle(fontWeight: FontWeight.w700, color: _T.textMain, fontSize: 14),
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: const TextStyle(color: _T.textHint, fontWeight: FontWeight.w600, fontSize: 13.5),
+          prefixIcon: Container(
+            margin: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: _T.ink, borderRadius: BorderRadius.circular(12)),
+            child: Icon(icon, color: AppColors.card, size: 18),
+          ),
+          suffixIcon: suffix,
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 19, horizontal: 14),
+        ),
+      ),
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════
+  //  HEADER
+  // ════════════════════════════════════════════════════════════
+  Widget _headerSection() {
+    return Column(
+      children: [
+        Container(
+          width: 108,
+          height: 108,
+          decoration: BoxDecoration(
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(13),
+            child: companyLogoUrl != null && companyLogoUrl!.trim().isNotEmpty
+                ? Image.network(
+              companyLogoUrl!,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => Image.asset(
+                "assets/images/app_logo.png",
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => Icon(
+                  Icons.eco_rounded,
+                  color: _T.purple,
+                  size: 34,
+                ),
+              ),
+            )
+                : Image.asset(
+              "assets/images/app_logo.png",
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => Icon(
+                Icons.eco_rounded,
+                color: _T.purple,
+                size: 34,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          isQuickPinTab ? "Quick PIN Login" : "Azcentrix Connect",
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.w500,
+            color: _T.purple,
+            letterSpacing: -0.2,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════
+  //  USER LOGIN FORM
+  // ════════════════════════════════════════════════════════════
+  Widget _userForm() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Column(
+        children: [
+          if (!hasSavedCompanyCode)
+            _simpleField(
+              controller: organizationController,
+              hint: "Company Code",
+            ),
+
+          _simpleField(
+            controller: usernameController,
+            hint: "Username",
+          ),
+          _simpleField(
+            controller: passwordController,
+            hint: "Password",
+            obscure: obscurePassword,
+            showDivider: false,
+            suffix: TextButton(
+              onPressed: () => setState(() => obscurePassword = !obscurePassword),
+              child: Icon(obscurePassword ? Icons.visibility_off_rounded : Icons.visibility_rounded ),
+            ),
+          ),
+        ],
+      ),
+
+      const SizedBox(height: 1),
+      Row(
+        children: [
+          Transform.scale(
+            scale: 0.90,
+            child: Checkbox(
+              value: rememberMe,
+              activeColor: _T.purple,
+              side: BorderSide(color: AppColors.border.withOpacity(0.9)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+              onChanged: (v) => setState(() => rememberMe = v ?? false),
+            ),
+          ),
+          const Text(
+            "Remember me",
+            style: TextStyle(
+              fontSize: 12.5,
+              color: _T.textMid,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 14),
+      _mainBtn(label: "Log In", onPressed: userLogin),
+      const SizedBox(height: 14),
+      Center(
+        child: TextButton(
+          onPressed: showForgotPasswordDialog,
+          child: const Text(
+            "Forgot Password?",
+            style: TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w700,
+              decoration: TextDecoration.underline,
+              color: _T.textMain,
+            ),
+          ),
+        ),
+      ),
+    ],
+  );
+
+  // ════════════════════════════════════════════════════════════
+  //  QUICK PIN LOGIN FORM
+  // ════════════════════════════════════════════════════════════
+  Widget _pinForm() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Column(
+        children: [
+
+          if (!hasSavedCompanyCode)
+            _simpleField(
+              controller: companyCodeController,
+              hint: "Company Code",
+              textCapitalization: TextCapitalization.characters,
+            ),
+
+          _simpleField(
+            controller: quickPinController,
+            hint: "4-Digit PIN",
+            obscure: true,
+            keyboardType: const TextInputType.numberWithOptions(),
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(4),
+            ],
+            maxLength: 4,
+            showDivider: false,
+          ),
+        ],
+      ),
+
+      const SizedBox(height: 16),
+      _mainBtn(
+        label: "Login with Quick PIN",
+        icon: Icons.login_rounded,
+        onPressed: quickPinLogin,
+      ),
+      const SizedBox(height: 10),
+      Center(
+        child: TextButton(
+          onPressed: () {
+            FocusScope.of(context).unfocus();
+
+            setState(() {
+              // reset to first setup step
+              isCreatePinMode = false;
+              isQuickPinOtpMode = false;
+
+              quickPinSetupToken = null;
+              quickPinChallengeId = null;
+              quickPinMaskedEmail = null;
+
+              quickPinEmailController.clear();
+              quickPinOtpController.clear();
+              createPinController.clear();
+              confirmPinController.clear();
+              setupUsernameController.clear();
+
+              if (hasSavedCompanyCode && savedCompanyCode.trim().isNotEmpty) {
+                setupCompanyCodeController.text = savedCompanyCode.trim();
+              }
+            });
+
+            showQuickPinSetupSheet();
+          },
+          child: Text(
+            "Set Quick PIN",
+            style: TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w700,
+              color: _T.purple,
+              decoration: TextDecoration.underline,
+            ),
+          ),
+        ),
+      ),
+    ],
+  );
+
+
+  // ════════════════════════════════════════════════════════════
+  //  AUTH CARD
+  // ════════════════════════════════════════════════════════════
+  Widget _authCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+      decoration: BoxDecoration(
+        color: AppColors.card.withOpacity(0.96),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border.withOpacity(0.45)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryDeep.withOpacity(0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+
+          Container(
+            padding: const EdgeInsets.only(bottom: 2),
+            decoration: const BoxDecoration(
+              color: Colors.transparent,
+            ),
+            child: Row(
+              children: [
+                _tab(
+                  "USER LOGIN",
+                  !isQuickPinTab,
+                      () => setState(() => isQuickPinTab = false),
+                ),
+                _tab(
+                  "QUICK PIN",
+                  isQuickPinTab,
+                      () => setState(() => isQuickPinTab = true),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 20),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 250),
+            transitionBuilder: (child, animation) => FadeTransition(
+              opacity: animation,
+              child: child,
+            ),
+            child: KeyedSubtree(
+              key: ValueKey(isQuickPinTab),
+              child: isQuickPinTab ? _pinForm() : _userForm(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════
+  //  FORGOT PASSWORD DIALOG
+  // ════════════════════════════════════════════════════════════
+  void showForgotPasswordDialog() {
     showGeneralDialog(
       context: context,
       barrierDismissible: true,
-      barrierLabel: "Forgot Password",
-      barrierColor: Colors.black.withOpacity(0.55),
+      barrierLabel: "FP",
+      barrierColor: AppColors.primaryDeep.withOpacity(0.65),
       transitionDuration: const Duration(milliseconds: 300),
-      pageBuilder: (_, __, ___) {
-        return const SizedBox.shrink();
-      },
-      transitionBuilder: (context, animation, secondaryAnimation, child) {
-
-        final curved = CurvedAnimation(
-          parent: animation,
-          curve: Curves.easeOutCubic,
-        );
-
+      pageBuilder: (_, __, ___) => const SizedBox.shrink(),
+      transitionBuilder: (ctx, anim, _, __) {
+        final c = CurvedAnimation(parent: anim, curve: Curves.easeOutBack);
         return Transform.scale(
-          scale: curved.value,
+          scale: c.value,
           child: Opacity(
-            opacity: curved.value,
+            opacity: anim.value,
             child: Center(
               child: Material(
-                color: Colors.transparent,
+                color: AppColors.card.withOpacity(0),
                 child: Container(
                   width: MediaQuery.of(context).size.width * 0.90,
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(32),
+                    color: AppColors.card,
+                    borderRadius: BorderRadius.circular(34),
+                    border: Border.all(color: AppColors.border.withOpacity(0.55)),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.15),
-                        blurRadius: 35,
-                        spreadRadius: 3,
-                        offset: const Offset(0, 14),
+                        color: AppColors.primaryDeep.withOpacity(0.22),
+                        blurRadius: 55,
+                        offset: const Offset(0, 24),
                       ),
                     ],
                   ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-
-                      /// TOP SECTION
-                      Row(
-                        children: [
-
-                          /// ICON
-                          Container(
-                            width: 62,
-                            height: 62,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(20),
-                              gradient: AppColors.headerGradient,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppColors.primaryLight
-                                      .withOpacity(0.25),
-                                  blurRadius: 14,
-                                  offset: const Offset(0, 6),
-                                ),
-                              ],
-                            ),
-                            child: const Icon(
-                              Icons.lock_reset_rounded,
-                              color: Colors.white,
-                              size: 30,
-                            ),
-                          ),
-
-                          const Spacer(),
-
-                          /// CLOSE BUTTON
-                          InkWell(
-                            borderRadius: BorderRadius.circular(14),
-                            onTap: () {
-                              Navigator.pop(context);
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: Colors.red.withOpacity(0.08),
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              child: const Icon(
-                                Icons.close_rounded,
-                                color: Colors.red,
-                                size: 20,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 28),
-
-                      /// TITLE
-                      const Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          "Forgot Password?",
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w900,
-                            color: AppColors.primaryDeep,
-                            letterSpacing: 0.2,
-                          ),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Row(children: [_gradBox(Icons.lock_reset_rounded), const Spacer(), _xBtn(() => Navigator.pop(ctx))]),
+                    const SizedBox(height: 22),
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        "Forgot Password?",
+                        style: TextStyle(
+                          fontSize: 23,
+                          fontWeight: FontWeight.w900,
+                          color: _T.textMain,
+                          letterSpacing: -0.3,
                         ),
                       ),
-
-                      const SizedBox(height: 10),
-
-                      /// SUBTITLE
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          "Enter your organization code and username to receive password reset instructions.",
-                          style: TextStyle(
-                            fontSize: 14.5,
-                            height: 1.6,
-                            color: Colors.grey.shade600,
-                            fontWeight: FontWeight.w500,
-                          ),
+                    ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        "Enter your organization code and username to receive reset instructions.",
+                        style: TextStyle(
+                          fontSize: 13,
+                          height: 1.6,
+                          color: AppColors.textSoft,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
+                    ),
 
-                      const SizedBox(height: 30),
-
-                      ///company code
-                      Container(
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF7F9FC),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: Colors.grey.shade200,
-                          ),
-                        ),
-                        child: TextField(
-                          controller: organizationController,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.primaryDeep,
-                          ),
-                          decoration: InputDecoration(
-                            hintText: "User Name",
-                            hintStyle: TextStyle(
-                              color: Colors.grey.shade500,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            prefixIcon: Container(
-                              margin: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(14),
-                                gradient: AppColors.headerGradient,
-                              ),
-                              child: const Icon(
-                                Icons.person_rounded,
-                                color: Colors.white,
-                                size: 20,
-                              ),
-                            ),
-                            border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(
-                              vertical: 20,
-                              horizontal: 16,
-                            ),
-                          ),
-                        ),
+                    if (!hasSavedCompanyCode) ...[
+                      _dlgField(
+                        ctrl: organizationController,
+                        hint: "Organization Code",
+                        icon: Icons.apartment_rounded,
                       ),
-
-                      /// USERNAME FIELD
-                      Container(
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF7F9FC),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: Colors.grey.shade200,
-                          ),
-                        ),
-                        child: TextField(
-                          controller: usernameController,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.primaryDeep,
-                          ),
-                          decoration: InputDecoration(
-                            hintText: "User Name",
-                            hintStyle: TextStyle(
-                              color: Colors.grey.shade500,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            prefixIcon: Container(
-                              margin: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(14),
-                                gradient: AppColors.headerGradient,
-                              ),
-                              child: const Icon(
-                                Icons.person_rounded,
-                                color: Colors.white,
-                                size: 20,
-                              ),
-                            ),
-                            border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(
-                              vertical: 20,
-                              horizontal: 16,
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      /// EMAIL
-                      Container(
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF7F9FC),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: Colors.grey.shade200,
-                          ),
-                        ),
-                        child: TextField(
-                          controller: emailForgotPassController,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.primaryDeep,
-                          ),
-                          decoration: InputDecoration(
-                            hintText: "User Name",
-                            hintStyle: TextStyle(
-                              color: Colors.grey.shade500,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            prefixIcon: Container(
-                              margin: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(14),
-                                gradient: AppColors.headerGradient,
-                              ),
-                              child: const Icon(
-                                Icons.person_rounded,
-                                color: Colors.white,
-                                size: 20,
-                              ),
-                            ),
-                            border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(
-                              vertical: 20,
-                              horizontal: 16,
-                            ),
-                          ),
-                        ),
-                      ),
-
-
-
-
-                      const SizedBox(height: 32),
-
-                      /// SEND BUTTON
-                      SizedBox(
-                        width: double.infinity,
-                        height: 58,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(20),
-                            gradient: AppColors.headerGradient,
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppColors.primaryLight
-                                    .withOpacity(0.30),
-                                blurRadius: 16,
-                                offset: const Offset(0, 8),
-                              ),
-                            ],
-                          ),
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.transparent,
-                              shadowColor: Colors.transparent,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                            ),
-                            onPressed: () {
-
-                              Navigator.pop(context);
-
-
-                              sendRequistForgotPassword();
-                            },
-                            child: const Row(
-                              mainAxisAlignment:
-                              MainAxisAlignment.center,
-                              children: [
-
-                                Text(
-                                  "Send Reset Request",
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.white,
-                                    letterSpacing: 0.3,
-                                  ),
-                                ),
-
-                                SizedBox(width: 10),
-
-                                Icon(
-                                  Icons.arrow_forward_rounded,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 20),
-
-                      /// FOOTER
-                      Row(
-                        mainAxisAlignment:
-                        MainAxisAlignment.center,
-                        children: [
-
-                          Icon(
-                            Icons.security_rounded,
-                            size: 15,
-                            color: Colors.grey.shade500,
-                          ),
-
-                          const SizedBox(width: 6),
-
-                          Text(
-                            "Your information is securely protected",
-                            style: TextStyle(
-                              color: Colors.grey.shade500,
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
+                      const SizedBox(height: 12),
                     ],
-                  ),
+
+                    if (!hasSavedUsername) ...[
+                      _dlgField(
+                        ctrl: usernameController,
+                        hint: "Username",
+                        icon: Icons.person_rounded,
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+
+
+                    const SizedBox(height: 12),
+                    _dlgField(ctrl: emailForgotPassController, hint: "Email Address", icon: Icons.email_rounded),
+                    const SizedBox(height: 24),
+                    _mainBtn(
+                      label: "Send Reset Request",
+                      icon: Icons.send_rounded,
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        sendRequistForgotPassword();
+                      },
+                    ),
+                    const SizedBox(height: 18),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                      decoration: BoxDecoration(
+                        color: AppColors.bg,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: AppColors.border.withOpacity(0.8)),
+                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
+                        Icon(Icons.security_rounded, size: 14, color: AppColors.textSoft.withOpacity(0.70)),
+                        const SizedBox(width: 6),
+                        Text(
+                          "Your information is securely protected",
+                          style: TextStyle(
+                            color: AppColors.textSoft.withOpacity(0.70),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ]),
+                    ),
+                  ]),
                 ),
               ),
             ),
@@ -1179,623 +2330,307 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  sendRequistForgotPassword() async {
-
-    Map<String, String> headers = {
-      "X-Tenant-Slug":
-      organizationController.text
-          .trim(),
-      "Content-Type":
-      "application/json",
-    };
-
-    Map<String, dynamic> body = {
-      "username": "",
-      "email" : "",
-
-    };
-
-    try {
-
-      final response =
-      await ApiMethod.postRequest(
-        url: ApiUrls.resendOTP,
-        headers: headers,
-        body: body,
-      );
-
-      if (response["statusCode"] == 200) {
-        Navigator.pop(context);
-
-      }
-
-    } catch (e) {
-      Navigator.pop(context);
-      print(e);
-    }
-
-  }
-
-  Widget tabButton({
-    required String title,
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 220),
-          height: 48,
-          decoration: BoxDecoration(
-            color: selected ? AppColors.primaryLight : Colors.transparent,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            title,
-            style: TextStyle(
-              color: selected ? Colors.white : AppColors.primarySlate,
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.3,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget userLoginForm() {
-    return Column(
-      children: [
-        TextField(
-          controller: organizationController,
-          decoration: inputDecoration(
-            hint: "Organization",
-            icon: Icons.apartment_rounded,
-          ),
-        ),
-        const SizedBox(height: 16),
-        TextField(
-          controller: usernameController,
-          decoration: inputDecoration(
-            hint: "UserName",
-            icon: Icons.person_rounded,
-          ),
-        ),
-        const SizedBox(height: 16),
-        TextField(
-          controller: passwordController,
-          obscureText: obscurePassword,
-          decoration: inputDecoration(
-            hint: "Password",
-            icon: Icons.lock_rounded,
-            suffixIcon: IconButton(
-              icon: Icon(
-                obscurePassword
-                    ? Icons.visibility_off_rounded
-                    : Icons.visibility_rounded,
-                color: AppColors.primarySlate,
-              ),
-              onPressed: () {
-                setState(() {
-                  obscurePassword = !obscurePassword;
-                });
-              },
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                Checkbox(
-                  value: rememberMe,
-                  activeColor: AppColors.primaryLight,
-                  onChanged: (value) {
-                    setState(() {
-                      rememberMe = value ?? false;
-                    });
-                  },
-                ),
-                const Text(
-                  "Remember Me",
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.primarySlate,
-                  ),
-                ),
-              ],
-            ),
-
-            SizedBox(width: 10,),
-
-            TextButton(
-              onPressed: showForgotPasswordDialog,
-              child: const Text(
-                "Forgot Password?",
-                style: TextStyle(
-                  color: AppColors.primaryLight,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 28),
-        mainButton(
-          title: "Sign In",
-          icon: Icons.arrow_forward_rounded,
-          onPressed: userLogin,
-        ),
-      ],
-    );
-  }
-
-  Widget quickPinLoginForm() {
-    return Column(
-      children: [
-        TextField(
-          controller: companyCodeController,
-          textCapitalization: TextCapitalization.characters,
-          decoration: inputDecoration(
-            hint: "Company Code",
-            icon: Icons.business_rounded,
-          ),
-        ),
-        const SizedBox(height: 16),
-        TextField(
-          controller: quickPinController,
-          obscureText: true,
-          keyboardType: TextInputType.numberWithOptions(
-            signed: false,
-            decimal: false,
-          ),
-          textInputAction: TextInputAction.done,
-          maxLength: 4,
-          inputFormatters: [
-            FilteringTextInputFormatter.digitsOnly,
-            LengthLimitingTextInputFormatter(4),
-          ],
-
-          decoration: inputDecoration(
-            hint: "Enter 4 Digit PIN",
-            icon: Icons.pin_rounded,
-          ).copyWith(counterText: ""),
-        ),
-        const SizedBox(height: 22),
-        mainButton(
-          title: "Login with Quick PIN",
-          icon: Icons.login_rounded,
-          onPressed: quickPinLogin,
-        ),
-        const SizedBox(height: 14),
-        TextButton(
-          onPressed: () {
-            setState(() {
-              FocusScope.of(context).unfocus();
-              isCreatePinMode = false;
-            });
-            showQuickPinSetupSheet();
-          },
-          child: const Text(
-            "Set Quick PIN",
-            style: TextStyle(
-              color: AppColors.primaryLight,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget mainButton({
-    required String title,
-    required IconData icon,
-    required VoidCallback onPressed,
-  }) {
-    return SizedBox(
-      width: double.infinity,
-      height: 58,
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primaryLight,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          shadowColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Icon(icon, size: 21),
-          ],
-        ),
-      ),
-    );
-  }
-
+  // ════════════════════════════════════════════════════════════
+  //  QUICK PIN SETUP SHEET
+  // ════════════════════════════════════════════════════════════
   void showQuickPinSetupSheet() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 18,
-                right: 18,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 18,
-              ),
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(22, 24, 22, 24),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(30),
+      backgroundColor: AppColors.card.withOpacity(0),
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setS) => Padding(
+          padding: EdgeInsets.only(
+            left: 14,
+            right: 14,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 14,
+          ),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(22, 16, 22, 24),
+            decoration: BoxDecoration(
+              color: AppColors.card,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
+              border: Border.all(color: AppColors.border.withOpacity(0.7)),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primaryDeep.withOpacity(0.16),
+                  blurRadius: 35,
+                  offset: const Offset(0, -8),
                 ),
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 46,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: const Color(0xffD1D5DB),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                      ),
-                      const SizedBox(height: 22),
-                      const Text(
-                        "Set Quick PIN",
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w900,
-                          color: AppColors.primaryDeep,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        "Verify your account and create a 4 digit PIN",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Color(0xff9CA3AF),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 26),
+              ],
+            ),
+            child: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Container(
+                  width: 46,
+                  height: 5,
+                  decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(10)),
+                ),
+                const SizedBox(height: 22),
+                Container(
+                  width: 62,
+                  height: 62,
+                  decoration: BoxDecoration(
+                    gradient: _T.heroGrad,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: _T.logoShadow,
+                  ),
+                  child: const Icon(Icons.pin_rounded, color: AppColors.card, size: 17),
+                ),
+                const SizedBox(height: 15),
+                const Text(
+                  "Set Quick PIN",
+                  style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900, color: _T.textMain, letterSpacing: -0.2),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  "Verify your account then create a 4-digit PIN",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12.5, color: _T.textHint, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 24),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 260),
+                  transitionBuilder: (child, anim) => FadeTransition(
+                    opacity: anim,
+                    child: SlideTransition(
+                      position: Tween<Offset>(begin: const Offset(0.04, 0), end: Offset.zero).animate(anim),
+                      child: child,
+                    ),
+                  ),
+                  child: KeyedSubtree(
+                    key: ValueKey(
+                      "${isQuickPinOtpMode}_$isCreatePinMode",
+                    ),
+                    child: _quickPinSetupStep(setS),
+                  ),
+                ),
+              ]),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
-                      if (!isCreatePinMode) ...[
-                        TextField(
-                          controller: setupCompanyCodeController,
-                          decoration: inputDecoration(
-                            hint: "Company Code",
-                            icon: Icons.business_rounded,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        TextField(
-                          controller: setupUsernameController,
-                          decoration: inputDecoration(
-                            hint: "User Name",
-                            icon: Icons.person_rounded,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        TextField(
-                          controller: setupPasswordController,
-                          obscureText: obscureSetupPassword,
-                          decoration: inputDecoration(
-                            hint: "Password",
-                            icon: Icons.lock_rounded,
-                            suffixIcon: IconButton(
-                              icon: Icon(
-                                obscureSetupPassword
-                                    ? Icons.visibility_off_rounded
-                                    : Icons.visibility_rounded,
-                                color: AppColors.primarySlate,
-                              ),
-                              onPressed: () {
-                                setSheetState(() {
-                                  obscureSetupPassword = !obscureSetupPassword;
-                                });
-                              },
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        mainButton(
-                          title: "Verify Account",
-                          icon: Icons.verified_user_rounded,
-                          onPressed: () async {
-                            await verifyUserAndAllowPinSetup();
-                            setSheetState(() {});
-                          },
-                        ),
-                      ] else ...[
-                        TextField(
-                          controller: createPinController,
-                          obscureText: true,
-                          keyboardType: TextInputType.number,
-                          maxLength: 4,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                            LengthLimitingTextInputFormatter(4),
-                          ],
-                          decoration: inputDecoration(
-                            hint: "Create 4 Digit PIN",
-                            icon: Icons.pin_rounded,
-                          ).copyWith(counterText: ""),
-                        ),
-                        const SizedBox(height: 16),
-                        TextField(
-                          controller: confirmPinController,
-                          obscureText: true,
-                          keyboardType: TextInputType.number,
-                          maxLength: 4,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                            LengthLimitingTextInputFormatter(4),
-                          ],
-                          decoration: inputDecoration(
-                            hint: "Confirm 4 Digit PIN",
-                            icon: Icons.lock_reset_rounded,
-                          ).copyWith(counterText: ""),
-                        ),
-                        const SizedBox(height: 24),
-                        mainButton(
-                          title: "Save Quick PIN",
-                          icon: Icons.check_circle_rounded,
-                          onPressed: () {
-                            saveQuickPin();
-                          },
-                        ),
-                      ],
+  Widget _quickPinSetupStep(StateSetter setS) {
+    // STEP 3 — create 4-digit PIN
+    if (isCreatePinMode) {
+      return Column(
+        children: [
+          TextField(
+            controller: createPinController,
+            obscureText: true,
+            keyboardType: TextInputType.number,
+            maxLength: 4,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(4),
+            ],
+            decoration: _field(
+              hint: "Create 4-Digit PIN",
+              icon: Icons.pin_rounded,
+            ).copyWith(counterText: ""),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: confirmPinController,
+            obscureText: true,
+            keyboardType: TextInputType.number,
+            maxLength: 4,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(4),
+            ],
+            decoration: _field(
+              hint: "Confirm PIN",
+              icon: Icons.lock_reset_rounded,
+            ).copyWith(counterText: ""),
+          ),
+          const SizedBox(height: 24),
+          _mainBtn(
+            label: "Save Quick PIN",
+            icon: Icons.check_circle_rounded,
+            onPressed: () {
+              // saveQuickPin pops the loading + the sheet itself on success
+              saveQuickPin();
+            },
+          ),
+        ],
+      );
+    }
+
+    // STEP 2 — verify OTP
+    if (isQuickPinOtpMode) {
+      return Column(
+        children: [
+          Text(
+            quickPinMaskedEmail == null
+                ? "Enter the OTP sent to your email."
+                : "Enter the OTP sent to $quickPinMaskedEmail",
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 12.5,
+              color: _T.textHint,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 22),
+
+          Pinput(
+            controller: quickPinOtpController,
+            length: 6,
+            keyboardType: TextInputType.number,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+            ],
+            defaultPinTheme: PinTheme(
+              width: 44,
+              height: 52,
+              textStyle: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: _T.textMain,
+              ),
+              decoration: BoxDecoration(
+                color: _T.fieldBg,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: _T.fieldBdr,
+                  width: 1.5,
+                ),
+              ),
+            ),
+            focusedPinTheme: PinTheme(
+              width: 44,
+              height: 52,
+              textStyle: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: _T.purple,
+              ),
+              decoration: BoxDecoration(
+                color: AppColors.bg,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: _T.purple,
+                  width: 2,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 18),
+
+          TextButton(
+            onPressed: () {
+              setState(() {
+                isQuickPinOtpMode = false;
+                isCreatePinMode = false;
+
+                quickPinOtpController.clear();
+                quickPinChallengeId = null;
+                quickPinMaskedEmail = null;
+              });
+              setS(() {});
+            },
+            child: const Text("Change Details"),
+          ),
+
+          const SizedBox(height: 12),
+
+          _mainBtn(
+            label: "Verify OTP",
+            icon: Icons.verified_rounded,
+            onPressed: () async {
+              await quickPinVerifyOtp();
+              setS(() {});
+            },
+          ),
+        ],
+      );
+    }
+
+    // STEP 1 — verify account (company code + username + email) → Send OTP
+    return Column(
+      children: [
+        
+        if (!hasSavedCompanyCode) ...[
+          TextField(
+            controller: setupCompanyCodeController,
+            textCapitalization: TextCapitalization.none,
+            decoration: _field(
+              hint: "Company Code",
+              icon: Icons.business_rounded,
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
+
+        if (!hasSavedUsername) ...[
+          TextField(
+            controller: setupUsernameController,
+            decoration: _field(
+              hint: "Username / Employee Code",
+              icon: Icons.person_rounded,
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
+
+        const SizedBox(height: 14),
+        TextField(
+          controller: quickPinEmailController,
+          keyboardType: TextInputType.emailAddress,
+          decoration: _field(
+            hint: "Email ID",
+            icon: Icons.email_rounded,
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        _mainBtn(
+          label: "Send OTP",
+          icon: Icons.send_rounded,
+          onPressed: () async {
+            await quickPinVerifyAccount();
+            setS(() {});
+          },
+        ),
+      ],
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════
+  //  BUILD
+  // ════════════════════════════════════════════════════════════
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF6FAFF),
+      resizeToAvoidBottomInset: true,
+      body: Stack(
+        children: [
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                physics: const BouncingScrollPhysics(),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 430),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 12),
+                      _headerSection(),
+                      const SizedBox(height: 24),
+                      _authCard(),
                     ],
                   ),
                 ),
               ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-    final topSectionHeight = size.height * 0.28; // responsive header
-
-    return Scaffold(
-      backgroundColor: const Color(0xffEEF1F5),
-      resizeToAvoidBottomInset: true,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            // HEADER BACKGROUND (responsive)
-            Container(
-              height: topSectionHeight,
-              width: double.infinity,
-              decoration: const BoxDecoration(
-                gradient: AppColors.headerGradient,
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(42),
-                  bottomRight: Radius.circular(42),
-                ),
-              ),
             ),
-
-            Positioned(
-              top: -70,
-              right: -55,
-              child: CircleAvatar(
-                radius: 120,
-                backgroundColor: Colors.white.withOpacity(0.07),
-              ),
-            ),
-
-            Positioned(
-              top: 135,
-              left: -65,
-              child: CircleAvatar(
-                radius: 95,
-                backgroundColor: Colors.white.withOpacity(0.06),
-              ),
-            ),
-
-            // MAIN CONTENT (flexible + scroll safe)
-            LayoutBuilder(
-              builder: (context, constraints) {
-                return SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      minHeight: constraints.maxHeight,
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Column(
-                        children: [
-                          SizedBox(height: size.height * 0.05),
-
-                          // LOGO
-                          Container(
-                            height: 92,
-                            width: 92,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(28),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.16),
-                                  blurRadius: 22,
-                                  offset: const Offset(0, 10),
-                                ),
-                              ],
-                            ),
-                            child: Container(
-                              margin: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: AppColors.primaryLight.withOpacity(0.10),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: const Icon(
-                                Icons.business_center_rounded,
-                                color: AppColors.primaryLight,
-                                size: 46,
-                              ),
-                            ),
-                          ),
-
-                          const SizedBox(height: 14),
-
-                          const Text(
-                            "DigitCRM",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 22,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 0.8,
-                            ),
-                          ),
-
-                          const SizedBox(height: 6),
-
-                          Text(
-                            "Smart Business Management",
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.85),
-                              fontSize: 12,
-                            ),
-                          ),
-
-                          SizedBox(height: size.height * 0.03),
-
-                          // LOGIN CARD
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(28),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppColors.primaryDark.withOpacity(0.12),
-                                  blurRadius: 30,
-                                  offset: const Offset(0, 14),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(5),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xffEEF1F5),
-                                    borderRadius: BorderRadius.circular(18),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      tabButton(
-                                        title: "USER LOGIN",
-                                        selected: !isQuickPinTab,
-                                        onTap: () {
-                                          setState(() {
-                                            isQuickPinTab = false;
-                                          });
-                                        },
-                                      ),
-                                      tabButton(
-                                        title: "QUICK PIN",
-                                        selected: isQuickPinTab,
-                                        onTap: () {
-                                          setState(() {
-                                            isQuickPinTab = true;
-                                          });
-                                        },
-                                      ),
-                                    ],
-                                  ),
-                                ),
-
-                                const SizedBox(height: 18),
-
-                                Text(
-                                  isQuickPinTab
-                                      ? "Quick PIN Login"
-                                      : "Welcome Back",
-                                  style: const TextStyle(
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.w900,
-                                    color: AppColors.primaryDeep,
-                                  ),
-                                ),
-
-                                const SizedBox(height: 6),
-
-                                Text(
-                                  isQuickPinTab
-                                      ? "Login faster using company code and PIN"
-                                      : "Login to access your CRM dashboard",
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Color(0xff9CA3AF),
-                                  ),
-                                ),
-
-                                const SizedBox(height: 18),
-
-                                AnimatedSwitcher(
-                                  duration: const Duration(milliseconds: 250),
-                                  child: isQuickPinTab
-                                      ? quickPinLoginForm()
-                                      : userLoginForm(),
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          const SizedBox(height: 22),
-
-                          Text(
-                            "Crafted by AZCENTRIX",
-                            style: TextStyle(
-                              color: AppColors.primarySlate.withOpacity(0.65),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-
-                          const SizedBox(height: 20),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

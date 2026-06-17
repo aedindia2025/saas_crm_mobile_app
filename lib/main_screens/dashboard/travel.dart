@@ -18,7 +18,7 @@ class TravelTab extends StatefulWidget {
 }
 
 class _TravelTabState extends State<TravelTab> {
-  static const baseUrl = "http://103.110.236.187:3076/api/v1";
+  static const baseUrl = "https://ascent.crm.azcentrix.com:4447/api/v1";
 
   bool loading = true;
   Map<String, dynamic>? data;

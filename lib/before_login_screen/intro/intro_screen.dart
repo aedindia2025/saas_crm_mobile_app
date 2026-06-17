@@ -15,22 +15,22 @@ class _IntroScreenState extends State<IntroScreen> {
 
   final List<_IntroPageData> _pages = const [
     _IntroPageData(
-      icon: Icons.dashboard_customize_rounded,
-      title: 'Manage Everything Smarter',
+      image: "assets/images/intro-one.png",
+      title: 'Connected Customer Experience',
       description:
-      'Organize your customers, leads, tasks, and business activity from one simple CRM platform.',
+      'Bring customer data, communications, and business processes together in one intelligent CRM platform.',
     ),
     _IntroPageData(
-      icon: Icons.analytics_rounded,
-      title: 'Track Business Growth',
+      image: "assets/images/intro-two.png",
+      title: 'Engage with Every Opportunity',
       description:
-      'View insights, monitor performance, and make faster decisions with clear business data.',
+      'Track interactions, manage follow-ups, and build lasting customer relationships through effective communication.',
     ),
     _IntroPageData(
-      icon: Icons.rocket_launch_rounded,
-      title: 'Boost Your Productivity',
+      image: "assets/images/intro-three.png",
+      title: 'Make Every Decision Count',
       description:
-      'Automate daily work, improve follow-ups, and help your team move faster every day.',
+      'Transform business data into actionable insights with advanced analytics and performance monitoring.',
     ),
   ];
 
@@ -140,7 +140,7 @@ class _IntroScreenState extends State<IntroScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text(
-                          'DigitCRM',
+                          'Azcentrix Connect',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 18,
@@ -180,39 +180,19 @@ class _IntroScreenState extends State<IntroScreen> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
+
                               Container(
-                                width: 210,
-                                height: 210,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.white.withOpacity(0.10),
-                                  border: Border.all(
-                                    color: Colors.white.withOpacity(0.22),
-                                    width: 1.2,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.24),
-                                      blurRadius: 42,
-                                      offset: const Offset(0, 24),
-                                    ),
-                                  ],
-                                ),
+                                width: double.infinity,
                                 child: Center(
-                                  child: Container(
-                                    width: 128,
-                                    height: 128,
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.16),
-                                      borderRadius: BorderRadius.circular(34),
-                                      border: Border.all(
-                                        color: Colors.white.withOpacity(0.24),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(24),
+                                    child: SizedBox(
+                                      height: 180,
+                                      width: 180,
+                                      child: Image.asset(
+                                        page.image,
+                                        fit: BoxFit.cover,
                                       ),
-                                    ),
-                                    child: Icon(
-                                      page.icon,
-                                      size: 68,
-                                      color: Colors.white,
                                     ),
                                   ),
                                 ),
@@ -355,12 +335,12 @@ class _IntroScreenState extends State<IntroScreen> {
 }
 
 class _IntroPageData {
-  final IconData icon;
+  final String image;
   final String title;
   final String description;
 
   const _IntroPageData({
-    required this.icon,
+    required this.image,
     required this.title,
     required this.description,
   });

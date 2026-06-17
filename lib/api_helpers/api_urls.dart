@@ -3,7 +3,9 @@
 class ApiUrls {
 
 
-  static String baseUrl = "http://103.110.236.187:3076";
+ // static String baseUrl = "http://103.110.236.187:3076";
+
+ static String baseUrl = "https://ascent.crm.azcentrix.com:4447";
 
   static String loginUrl = "${baseUrl}/api/v1/auth/login";
 

@@ -36,6 +36,8 @@ class Kam360Page extends StatefulWidget {
 }
 
 class _TableHead extends StatelessWidget {
+
+
   final String text;
   final bool center;
 
@@ -57,10 +59,16 @@ class _TableHead extends StatelessWidget {
 
 class _Kam360PageState extends State<Kam360Page>
     with SingleTickerProviderStateMixin {
-  static const String _baseUrl = 'http://103.110.236.187:3076';
+  static const String _baseUrl = 'https://ascent.crm.azcentrix.com:4447';
   late TabController tabController;
   String? token;
   String? tenantSlug;
+
+  final ScrollController _kam360ScrollController = ScrollController();
+
+  int kam360VisibleCount = 10;
+  final int kam360Limit = 10;
+
 
   String advancedSection = "tree";
   int? expandedGroupId;
@@ -110,6 +118,17 @@ class _Kam360PageState extends State<Kam360Page>
 
   String activitySearch = "";
   String dateView = "today"; // today / all / custom
+
+  // Web parity: Activity Planner / Activity List / Pending Weekly Plan
+  String activitySubTab = "planner"; // planner / list / pending
+  String plannerView = "week"; // day / week / month
+  DateTime plannerDate = DateTime.now();
+
+  bool weeklyPlanLoading = false;
+  bool weeklyPlanSending = false;
+  Map<String, dynamic>? weeklyPlanStatus;
+  List<int> weeklySelectedIds = [];
+
   String? selectedActivityType;
   String? selectedActivityStatus;
   int? selectedActivityCustomerId;
@@ -235,11 +254,21 @@ class _Kam360PageState extends State<Kam360Page>
     final now = DateTime.now();
     period = "${now.year}-${now.month.toString().padLeft(2, '0')}";
 
+    _kam360ScrollController.addListener(() {
+      if (_kam360ScrollController.position.pixels >=
+          _kam360ScrollController.position.maxScrollExtent - 250) {
+        setState(() {
+          kam360VisibleCount += kam360Limit;
+        });
+      }
+    });
+
     loadAll();
   }
 
   @override
   void dispose() {
+    _kam360ScrollController.dispose();
     tabController.dispose();
     super.dispose();
   }
@@ -278,6 +307,10 @@ class _Kam360PageState extends State<Kam360Page>
       fetchKam360(),
       fetchKamSharedData(),
     ]);
+
+    if (canManageWeeklyEscalations) {
+      await fetchWeeklyPlanStatus();
+    }
 
     if (mounted) setState(() => pageLoading = false);
   }
@@ -463,6 +496,83 @@ class _Kam360PageState extends State<Kam360Page>
     } catch (e) {
       setState(() => kamLoading = false);
       showError(e.toString());
+    }
+  }
+
+
+  String get currentUserRole {
+    final self = teamMembers.cast<Map<String, dynamic>?>().firstWhere(
+          (u) => u?['is_self'] == true,
+      orElse: () => teamMembers.isNotEmpty ? teamMembers.first : null,
+    );
+    return safeText(self?['role'], '').toLowerCase().replaceAll('-', '_').replaceAll(' ', '_');
+  }
+
+  bool get canManageWeeklyEscalations {
+    return ['ceo', 'admin', 'super_admin', 'manager', 'sales_head', 'saleshead', 'vp']
+        .contains(currentUserRole);
+  }
+
+  int get pendingWeeklyCount => asInt(weeklyPlanStatus?['pending_users']);
+
+  Future<void> fetchWeeklyPlanStatus() async {
+    if (!canManageWeeklyEscalations || token == null || token!.isEmpty) return;
+
+    try {
+      setState(() => weeklyPlanLoading = true);
+      final data = await getApi('/kam/weekly-plan/status');
+      final status = Map<String, dynamic>.from(data as Map? ?? {});
+      final missingUsers = toMapList(status['missing_users'] ?? []);
+      final validIds = missingUsers.map((u) => asInt(u['id'])).where((id) => id > 0).toSet();
+
+      setState(() {
+        weeklyPlanStatus = status;
+        weeklySelectedIds = weeklySelectedIds.where(validIds.contains).toList();
+        weeklyPlanLoading = false;
+      });
+    } catch (e) {
+      setState(() => weeklyPlanLoading = false);
+      // 403 means this user is not allowed to manage escalations; keep the tab hidden.
+      debugPrint('fetchWeeklyPlanStatus failed: $e');
+    }
+  }
+
+  void toggleWeeklyUser(int id) {
+    setState(() {
+      if (weeklySelectedIds.contains(id)) {
+        weeklySelectedIds.remove(id);
+      } else {
+        weeklySelectedIds.add(id);
+      }
+    });
+  }
+
+  void toggleAllWeeklyUsers() {
+    final users = toMapList(weeklyPlanStatus?['missing_users'] ?? []);
+    final allIds = users.map((u) => asInt(u['id'])).where((id) => id > 0).toList();
+    setState(() {
+      weeklySelectedIds = weeklySelectedIds.length == allIds.length ? [] : allIds;
+    });
+  }
+
+  Future<void> sendWeeklyEscalation({List<int>? userIds}) async {
+    if (weeklyPlanSending) return;
+
+    try {
+      setState(() => weeklyPlanSending = true);
+      final data = await postApi('/kam/weekly-plan/send-escalation', {
+        if (userIds != null) 'user_ids': userIds,
+      });
+      final sent = asInt(data['sent']);
+      showSuccess(sent > 0
+          ? 'Sent $sent escalation email${sent == 1 ? '' : 's'}'
+          : 'No escalation emails sent');
+      setState(() => weeklySelectedIds = []);
+      await fetchWeeklyPlanStatus();
+    } catch (e) {
+      showError(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => weeklyPlanSending = false);
     }
   }
 
@@ -849,17 +959,22 @@ class _Kam360PageState extends State<Kam360Page>
             const SizedBox(height: 12),
             Row(
               children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(.14),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.white.withOpacity(.18)),
-                  ),
-                  child: Icon(
-                    isActivities ? Icons.task_alt_rounded : Icons.pie_chart_rounded,
-                    color: Colors.white,
+                GestureDetector(
+                  onTap: (){
+                    Navigator.pop(context);
+                  },
+                  child: Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(.14),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white.withOpacity(.18)),
+                    ),
+                    child: Icon(
+                                Icons.arrow_back,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -889,15 +1004,17 @@ class _Kam360PageState extends State<Kam360Page>
                   ),
                 ),
                 ElevatedButton.icon(
-                  onPressed: (){
-                    Navigator.push(context,
-                        MaterialPageRoute(builder: (context) =>  PlanYourDayPage(
-                      customers: customers,
-                      teamMembers: teamMembers,
-                      token: token!,
-                      baseUrl: _baseUrl,
-                      tenantSlug: tenantSlug ?? "",
-                    ),));
+                    onPressed: (){
+
+                      Navigator.push(context,
+                          MaterialPageRoute(builder: (context) =>  PlanYourDayPage(
+                            customers: customers,
+                            teamMembers: teamMembers,
+                            token: token!,
+                            baseUrl: _baseUrl,
+                            tenantSlug: tenantSlug ?? "",
+                          ),));
+
                   },
                   icon: const Icon(Icons.add, size: 17),
                   label: const Text("Plan Day"),
@@ -905,6 +1022,9 @@ class _Kam360PageState extends State<Kam360Page>
                     backgroundColor:  Colors.white,
                     foregroundColor: AppColors.primaryLight,
                     elevation: 0,
+                    fixedSize: const Size(96, 38),
+                    minimumSize: const Size(0, 38),
+                    maximumSize: const Size(96, 38),
                     padding: const EdgeInsets.symmetric(vertical: 8,horizontal: 10),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
@@ -969,20 +1089,163 @@ class _Kam360PageState extends State<Kam360Page>
   }
 
   Widget activitiesTab() {
+    if (activitySubTab == 'pending' && canManageWeeklyEscalations) {
+      return RefreshIndicator(
+        onRefresh: fetchWeeklyPlanStatus,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+          children: [
+            _activitiesSectionHeader(),
+            const SizedBox(height: 14),
+            _pendingWeeklyPlanPanel(),
+          ],
+        ),
+      );
+    }
+
+    if (activitySubTab == 'list') {
+      return _activityListTab();
+    }
+
+    return _activityPlannerTab();
+  }
+
+  Widget _activitiesSectionHeader() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: cardDecoration(radius: 22),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Activities',
+                      style: TextStyle(
+                        color: Color(0xff0F172A),
+                        fontWeight: FontWeight.w900,
+                        fontSize: 20,
+                      ),
+                    ),
+                    SizedBox(height: 3),
+                    Text(
+                      'Plan, track, and close KAM activities',
+                      style: TextStyle(
+                        color: Color(0xff64748B),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (activitySubTab == 'planner') _activityScopeDropdown(),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Divider(height: 1, color: Colors.grey.shade200),
+          const SizedBox(height: 12),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _activitySubTabButton('planner', 'Activity Planner'),
+                const SizedBox(width: 8),
+                _activitySubTabButton('list', 'Activity List'),
+                if (canManageWeeklyEscalations) ...[
+                  const SizedBox(width: 8),
+                  _activitySubTabButton(
+                    'pending',
+                    'Pending Weekly Plan',
+                    badge: pendingWeeklyCount > 0 ? '$pendingWeeklyCount' : null,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _activitySubTabButton(String id, String label, {String? badge}) {
+    final active = activitySubTab == id;
+    return InkWell(
+      onTap: () {
+        setState(() => activitySubTab = id);
+        if (id == 'pending') fetchWeeklyPlanStatus();
+        if (id == 'list' || id == 'planner') fetchActivities();
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        height: 36,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: active ? Colors.white : const Color(0xffF1F5F9),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: active ? const Color(0xff111827) : const Color(0xffF1F5F9),
+            width: active ? 1.5 : 1,
+          ),
+          boxShadow: active
+              ? [BoxShadow(color: Colors.black.withOpacity(.05), blurRadius: 8, offset: const Offset(0, 3))]
+              : [],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: active ? AppColors.primaryLight : const Color(0xff64748B),
+                fontWeight: FontWeight.w900,
+                fontSize: 12,
+              ),
+            ),
+            if (badge != null) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xffEEF2FF),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  badge,
+                  style: const TextStyle(
+                    color: Color(0xff2563EB),
+                    fontWeight: FontWeight.w900,
+                    fontSize: 10,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _activityListTab() {
     final filtered = activities.where((a) {
       final q = activitySearch.toLowerCase().trim();
       if (q.isEmpty) return true;
 
-      return safeText(a["subject"], "").toLowerCase().contains(q) ||
-          safeText(a["customer_name"], "").toLowerCase().contains(q) ||
-          safeText(a["user_name"], "").toLowerCase().contains(q) ||
-          safeText(a["activity_type"], "").toLowerCase().contains(q) ||
-          safeText(a["task_type_name"], "").toLowerCase().contains(q);
+      return safeText(a['subject'], '').toLowerCase().contains(q) ||
+          safeText(a['customer_name'], '').toLowerCase().contains(q) ||
+          safeText(a['user_name'], '').toLowerCase().contains(q) ||
+          safeText(a['activity_type'], '').toLowerCase().contains(q) ||
+          safeText(a['task_type_name'], '').toLowerCase().contains(q);
     }).toList();
 
     final grouped = <String, List<Map<String, dynamic>>>{};
     for (final a in filtered) {
-      final user = safeText(a["user_name"], "My Activities");
+      final user = safeText(a['user_name'], 'My Activities');
       grouped.putIfAbsent(user, () => []).add(a);
     }
 
@@ -991,7 +1254,7 @@ class _Kam360PageState extends State<Kam360Page>
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
         children: [
-          _activitySummaryStrip(),
+          _activitiesSectionHeader(),
           const SizedBox(height: 14),
           _activityFilters(),
           const SizedBox(height: 16),
@@ -1003,8 +1266,8 @@ class _Kam360PageState extends State<Kam360Page>
           else if (filtered.isEmpty)
             _emptyCard(
               icon: Icons.event_available_rounded,
-              title: "No activities found",
-              subtitle: "Change filters to view activity records.",
+              title: 'No activities found',
+              subtitle: 'Change filters to view activity records.',
             )
           else
             ...grouped.entries.map((entry) {
@@ -1016,6 +1279,648 @@ class _Kam360PageState extends State<Kam360Page>
                 ],
               );
             }),
+        ],
+      ),
+    );
+  }
+
+  Widget _activityPlannerTab() {
+    final visibleActivities = _plannerFilteredActivities();
+
+    return RefreshIndicator(
+      onRefresh: fetchActivities,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+        children: [
+          _activitiesSectionHeader(),
+          const SizedBox(height: 14),
+          _plannerToolbar(),
+          const SizedBox(height: 14),
+          if (activitiesLoading)
+            const Padding(
+              padding: EdgeInsets.only(top: 100),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (plannerView == 'day')
+            _plannerDayView(visibleActivities)
+          else if (plannerView == 'month')
+              _plannerMonthView(visibleActivities)
+            else
+              _plannerWeekView(visibleActivities),
+        ],
+      ),
+    );
+  }
+
+  List<Map<String, dynamic>> _plannerFilteredActivities() {
+    return activities.where((a) {
+      if (selectedActivityUserId != null && asInt(a['user_id']) != selectedActivityUserId) return false;
+      if (selectedActivityType != null && selectedActivityType!.isNotEmpty && activityTypeName(a) != selectedActivityType) return false;
+      if (selectedActivityStatus != null && selectedActivityStatus!.isNotEmpty && safeText(a['status']) != selectedActivityStatus) return false;
+      if (selectedActivityCustomerId != null && asInt(a['customer_id']) != selectedActivityCustomerId) return false;
+      return true;
+    }).toList();
+  }
+
+  Widget _plannerToolbar() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: cardDecoration(radius: 20),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              _plannerViewButton('day', 'Day'),
+              const SizedBox(width: 8),
+              _plannerViewButton('week', 'Week'),
+              const SizedBox(width: 8),
+              _plannerViewButton('month', 'Month'),
+              const Spacer(),
+              _smallRoundIcon(Icons.chevron_left_rounded, _movePlannerBack),
+              const SizedBox(width: 8),
+              _smallRoundIcon(Icons.chevron_right_rounded, _movePlannerForward),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              TextButton(
+                onPressed: () {
+                  setState(() => plannerDate = DateTime.now());
+                  fetchActivities();
+                },
+                child: const Text('Today', style: TextStyle(fontWeight: FontWeight.w900)),
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: _plannerDateBadge()),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> openQuickPlanActivityDialog(
+      DateTime day, {
+        String? startTime,
+      }) async {
+    if (token == null || token!.isEmpty) {
+      showError("Login token not found");
+      return;
+    }
+
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) {
+        return _QuickPlanActivityDialog(
+          date: day,
+          initialStartTime: startTime,
+          customers: customers,
+          teamMembers: teamMembers,
+          activityTypes: activityTypes,
+          saving: saving,
+        );
+      },
+    );
+
+    if (result == null) return;
+
+    await saveQuickPlanActivity(result);
+  }
+
+  Future<void> saveQuickPlanActivity(Map<String, dynamic> form) async {
+    if (saving) return;
+
+    final subject = safeText(form["subject"], "").trim();
+    if (subject.isEmpty) {
+      showError("Title required");
+      return;
+    }
+
+    final activityType = safeText(form["activity_type"], "In Person Meet");
+
+    try {
+      setState(() => saving = true);
+
+      await postApi("/kam/activities", {
+        "activity_type": activityType,
+        "mode": modeForActivityType(activityType),
+        "customer_id": form["customer_id"],
+        "subject": subject,
+        "activity_date": form["activity_date"],
+        "start_time": form["all_day"] == true ? null : form["start_time"],
+        "duration_minutes": form["duration_minutes"] ?? 0,
+        "location": safeText(form["location"], "").trim().isEmpty
+            ? null
+            : safeText(form["location"], "").trim(),
+        "status": "Planned",
+        "on_behalf_of": form["on_behalf_of"],
+      });
+
+      showSuccess("Activity planned");
+
+      setState(() {
+        plannerDate = DateTime.parse(form["activity_date"]);
+        dateView = "custom";
+
+        if (plannerView == "day") {
+          activityFromDate = plannerDate;
+          activityToDate = plannerDate;
+        } else if (plannerView == "week") {
+          final start = _weekStart(plannerDate);
+          activityFromDate = start;
+          activityToDate = start.add(const Duration(days: 5));
+        } else {
+          activityFromDate = DateTime(plannerDate.year, plannerDate.month, 1);
+          activityToDate = DateTime(plannerDate.year, plannerDate.month + 1, 0);
+        }
+      });
+
+      await fetchActivities();
+    } catch (e) {
+      showError(e.toString().replaceFirst("Exception: ", ""));
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
+  Widget _plannerViewButton(String id, String label) {
+    final active = plannerView == id;
+    return InkWell(
+      onTap: () {
+        setState(() => plannerView = id);
+        _applyPlannerDateRange();
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        decoration: BoxDecoration(
+          color: active ? Colors.white : const Color(0xffF8FAFC),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: active ? const Color(0xff111827) : const Color(0xffE2E8F0), width: active ? 1.5 : 1),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: active ? const Color(0xff2563EB) : const Color(0xff64748B),
+            fontWeight: FontWeight.w900,
+            fontSize: 12,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _plannerDateBadge() {
+    return InkWell(
+      onTap: _pickPlannerDate,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xffF8FAFC),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xffE2E8F0)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.calendar_month_rounded, size: 16, color: Color(0xff2563EB)),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                _plannerRangeLabel(),
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Color(0xff0F172A),
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _smallRoundIcon(IconData icon, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xffE2E8F0)),
+        ),
+        child: Icon(icon, color: const Color(0xff64748B)),
+      ),
+    );
+  }
+
+  Widget _activityScopeDropdown() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xffF8FAFC),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xffE2E8F0)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<int?>(
+          value: selectedActivityUserId,
+          hint: const Text('All Activities'),
+          items: [
+            const DropdownMenuItem<int?>(value: null, child: Text('All Activities')),
+            ...teamMembers.map((u) => DropdownMenuItem<int?>(
+              value: asInt(u['id'] ?? u['user_id']),
+              child: Text(safeText(u['full_name'] ?? u['user_name'], 'User')),
+            )),
+          ],
+          onChanged: (v) {
+            setState(() => selectedActivityUserId = v);
+            fetchActivities();
+          },
+        ),
+      ),
+    );
+  }
+
+  DateTime _weekStart(DateTime date) {
+    final d = DateTime(date.year, date.month, date.day);
+    return d.subtract(Duration(days: d.weekday - 1));
+  }
+
+  String _monthShort(int month) {
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return months[month - 1];
+  }
+
+  String _displayDate(DateTime d) {
+    return '${d.day.toString().padLeft(2, '0')} ${_monthShort(d.month)} ${d.year}';
+  }
+
+  String _plannerRangeLabel() {
+    if (plannerView == 'day') return _displayDate(plannerDate);
+    if (plannerView == 'month') return '${_monthShort(plannerDate.month)} ${plannerDate.year}';
+    final start = _weekStart(plannerDate);
+    final end = start.add(const Duration(days: 5)); // Monday to Saturday, like the web screen.
+    return '${_displayDate(start)} - ${_displayDate(end)}';
+  }
+
+  void _movePlannerBack() {
+    setState(() {
+      if (plannerView == 'day') plannerDate = plannerDate.subtract(const Duration(days: 1));
+      if (plannerView == 'week') plannerDate = plannerDate.subtract(const Duration(days: 7));
+      if (plannerView == 'month') plannerDate = DateTime(plannerDate.year, plannerDate.month - 1, 1);
+    });
+    _applyPlannerDateRange();
+  }
+
+  void _movePlannerForward() {
+    setState(() {
+      if (plannerView == 'day') plannerDate = plannerDate.add(const Duration(days: 1));
+      if (plannerView == 'week') plannerDate = plannerDate.add(const Duration(days: 7));
+      if (plannerView == 'month') plannerDate = DateTime(plannerDate.year, plannerDate.month + 1, 1);
+    });
+    _applyPlannerDateRange();
+  }
+
+  Future<void> _pickPlannerDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: plannerDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2035),
+    );
+    if (picked == null) return;
+    setState(() => plannerDate = picked);
+    _applyPlannerDateRange();
+  }
+
+  void _applyPlannerDateRange() {
+    setState(() {
+      dateView = 'custom';
+      if (plannerView == 'day') {
+        activityFromDate = plannerDate;
+        activityToDate = plannerDate;
+      } else if (plannerView == 'month') {
+        activityFromDate = DateTime(plannerDate.year, plannerDate.month, 1);
+        activityToDate = DateTime(plannerDate.year, plannerDate.month + 1, 0);
+      } else {
+        final start = _weekStart(plannerDate);
+        activityFromDate = start;
+        activityToDate = start.add(const Duration(days: 5));
+      }
+    });
+    fetchActivities();
+  }
+
+  List<DateTime> _plannerDays() {
+    if (plannerView == 'day') return [DateTime(plannerDate.year, plannerDate.month, plannerDate.day)];
+    final start = _weekStart(plannerDate);
+    return List.generate(6, (i) => start.add(Duration(days: i)));
+  }
+
+  List<Map<String, dynamic>> _activitiesForDay(List<Map<String, dynamic>> list, DateTime day) {
+    final key = dateText(day);
+    return list.where((a) => safeText(a['activity_date'], '') == key).toList();
+  }
+
+  Widget _plannerDayView(List<Map<String, dynamic>> list) {
+    final dayActs = _activitiesForDay(list, plannerDate);
+    return _plannerDayColumn(plannerDate, dayActs, large: true);
+  }
+
+  Widget _plannerWeekView(List<Map<String, dynamic>> list) {
+    final days = _plannerDays();
+    return Column(
+      children: days.map((d) => _plannerDayColumn(d, _activitiesForDay(list, d))).toList(),
+    );
+  }
+
+  Widget _plannerDayColumn(DateTime day, List<Map<String, dynamic>> dayActs, {bool large = false}) {
+    final today = dateText(DateTime.now()) == dateText(day);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: today ? const Color(0xffEFF6FF) : Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: today ? const Color(0xffBFDBFE) : const Color(0xffE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: today ? const Color(0xff2563EB) : const Color(0xffF1F5F9),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Center(
+                  child: Text(
+                    '${day.day}',
+                    style: TextStyle(
+                      color: today ? Colors.white : const Color(0xff0F172A),
+                      fontWeight: FontWeight.w900,
+                      fontSize: 17,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(_displayDate(day), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Color(0xff0F172A))),
+                    Text('${dayActs.length} activities', style: const TextStyle(color: Color(0xff64748B), fontSize: 12, fontWeight: FontWeight.w700)),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: () => openQuickPlanActivityDialog(day),
+                icon: const Icon(Icons.add_circle_outline_rounded, color: Color(0xff2563EB)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (dayActs.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.symmetric(vertical: large ? 42 : 20),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), border: Border.all(color: const Color(0xffE2E8F0))),
+              child: const Center(
+                child: Text('No activities planned', style: TextStyle(color: Color(0xff94A3B8), fontWeight: FontWeight.w800)),
+              ),
+            )
+          else
+            ...dayActs.map(activityCard),
+        ],
+      ),
+    );
+  }
+
+  Widget _plannerMonthView(List<Map<String, dynamic>> list) {
+    final first = DateTime(plannerDate.year, plannerDate.month, 1);
+    final last = DateTime(plannerDate.year, plannerDate.month + 1, 0);
+    final gridStart = first.subtract(Duration(days: first.weekday - 1));
+    final gridEnd = last.add(Duration(days: 7 - last.weekday));
+    final count = gridEnd.difference(gridStart).inDays + 1;
+    final days = List.generate(count, (i) => gridStart.add(Duration(days: i)));
+
+    return Container(
+      decoration: cardDecoration(radius: 22),
+      padding: const EdgeInsets.all(10),
+      child: Column(
+        children: [
+          Row(
+            children: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
+                .map((d) => Expanded(child: Center(child: Text(d, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: Color(0xff64748B))))))
+                .toList(),
+          ),
+          const SizedBox(height: 8),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 7, mainAxisExtent: 74, crossAxisSpacing: 6, mainAxisSpacing: 6),
+            itemCount: days.length,
+            itemBuilder: (context, index) {
+              final d = days[index];
+              final inMonth = d.month == plannerDate.month;
+              final acts = _activitiesForDay(list, d);
+              final isToday = dateText(d) == dateText(DateTime.now());
+              return InkWell(
+                onTap: () {
+                  setState(() {
+                    plannerDate = d;
+                    plannerView = 'day';
+                  });
+                  _applyPlannerDateRange();
+                },
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: isToday ? const Color(0xffEFF6FF) : (inMonth ? Colors.white : const Color(0xffF8FAFC)),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: isToday ? const Color(0xff93C5FD) : const Color(0xffE2E8F0)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${d.day}', style: TextStyle(fontWeight: FontWeight.w900, color: inMonth ? const Color(0xff0F172A) : const Color(0xffCBD5E1), fontSize: 12)),
+                      const Spacer(),
+                      if (acts.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(color: const Color(0xffDBEAFE), borderRadius: BorderRadius.circular(999)),
+                          child: Text('${acts.length}', style: const TextStyle(color: Color(0xff2563EB), fontSize: 10, fontWeight: FontWeight.w900)),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pendingWeeklyPlanPanel() {
+    final status = weeklyPlanStatus;
+    final users = toMapList(status?['missing_users'] ?? []);
+    final dueNow = status?['due_now'] == true;
+    final forcePossible = status?['force_send_possible'] != false;
+    final canSend = dueNow && forcePossible && !weeklyPlanSending;
+    final allSelected = users.isNotEmpty && users.every((u) => weeklySelectedIds.contains(asInt(u['id'])));
+    final blockedReason = status == null
+        ? 'Loading weekly plan status...'
+        : !dueNow
+        ? 'Escalation opens after ${safeText(status['grace_time'], 'Monday 11:00 AM IST')}'
+        : !forcePossible
+        ? safeText(status['reason'], 'Escalation cannot be sent now')
+        : '';
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xffFFFBEB),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xffFCD34D)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Flexible(
+                          child: Text('Pending Weekly Plan', style: TextStyle(color: Color(0xff451A03), fontWeight: FontWeight.w900, fontSize: 15)),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(999), border: Border.all(color: const Color(0xffFCD34D))),
+                          child: Text('${status?['pending_users'] ?? users.length} Pending', style: const TextStyle(color: Color(0xffB45309), fontWeight: FontWeight.w900, fontSize: 11)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Week: ${safeText(status?['week_label'], '--')} · Grace time: ${safeText(status?['grace_time'], 'Monday 11:00 AM IST')}',
+                      style: const TextStyle(color: Color(0xff92400E), fontWeight: FontWeight.w800, fontSize: 12),
+                    ),
+                    if (blockedReason.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(blockedReason, style: const TextStyle(color: Color(0xffB45309), fontWeight: FontWeight.w700, fontSize: 11)),
+                    ],
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: weeklyPlanLoading ? null : fetchWeeklyPlanStatus,
+                icon: weeklyPlanLoading
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.refresh_rounded, color: Color(0xffB45309)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: weeklyPlanLoading ? null : fetchWeeklyPlanStatus,
+                icon: const Icon(Icons.refresh_rounded, size: 16),
+                label: const Text('Refresh'),
+                style: OutlinedButton.styleFrom(foregroundColor: const Color(0xffB45309), side: const BorderSide(color: Color(0xffFCD34D))),
+              ),
+              OutlinedButton.icon(
+                onPressed: canSend && users.isNotEmpty ? () => sendWeeklyEscalation() : null,
+                icon: const Icon(Icons.email_outlined, size: 16),
+                label: const Text('Send Escalation to All'),
+                style: OutlinedButton.styleFrom(foregroundColor: const Color(0xffB45309), side: const BorderSide(color: Color(0xffF59E0B))),
+              ),
+              ElevatedButton.icon(
+                onPressed: canSend && weeklySelectedIds.isNotEmpty
+                    ? () => sendWeeklyEscalation(userIds: weeklySelectedIds)
+                    : null,
+                icon: const Icon(Icons.email_outlined, size: 16),
+                label: const Text('Send Escalation'),
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xffF59E0B), foregroundColor: Colors.white, elevation: 0),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(.72),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xffFCD34D)),
+            ),
+            child: Column(
+              children: [
+                CheckboxListTile(
+                  dense: true,
+                  value: allSelected,
+                  onChanged: users.isEmpty ? null : (_) => toggleAllWeeklyUsers(),
+                  title: const Text('Select all pending users', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xff451A03), fontSize: 12)),
+                  controlAffinity: ListTileControlAffinity.leading,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                ),
+                const Divider(height: 1, color: Color(0xffFDE68A)),
+                if (weeklyPlanLoading && users.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(28),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else if (users.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: Text('All users have submitted weekly plan.', style: TextStyle(color: Color(0xff92400E), fontWeight: FontWeight.w800))),
+                  )
+                else
+                  ...users.map((u) {
+                    final id = asInt(u['id']);
+                    return Column(
+                      children: [
+                        CheckboxListTile(
+                          value: weeklySelectedIds.contains(id),
+                          onChanged: (_) => toggleWeeklyUser(id),
+                          controlAffinity: ListTileControlAffinity.leading,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          title: Text(
+                            safeText(u['name'] ?? u['full_name'] ?? u['user_name'], 'User'),
+                            style: const TextStyle(color: Color(0xff0F172A), fontWeight: FontWeight.w900, fontSize: 13),
+                          ),
+                          subtitle: Text(
+                            '${safeText(u['email'], '-')} · ${safeText(u['role'], 'user')}',
+                            style: const TextStyle(color: Color(0xff64748B), fontWeight: FontWeight.w600, fontSize: 11),
+                          ),
+                        ),
+                        if (u != users.last) const Divider(height: 1, color: Color(0xffFDE68A)),
+                      ],
+                    );
+                  }),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -1719,6 +2624,10 @@ class _Kam360PageState extends State<Kam360Page>
       return searchMatch && customerMatch;
     }).toList();
 
+    final visibleCustomers = filteredCustomers
+        .take(kam360VisibleCount)
+        .toList();
+
     final filteredTeam = teamRows.where((m) {
       final q = advancedMemberSearch.toLowerCase().trim();
       if (q.isEmpty) return true;
@@ -1732,6 +2641,7 @@ class _Kam360PageState extends State<Kam360Page>
     return RefreshIndicator(
       onRefresh: reloadKamAll,
       child: ListView(
+        controller: _kam360ScrollController,
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
         children: [
           _kamToolbar(),
@@ -1747,7 +2657,7 @@ class _Kam360PageState extends State<Kam360Page>
               const SizedBox(height: 14),
               _performanceCard(),
               const SizedBox(height: 14),
-              _customerActivitySection(filteredCustomers),
+              _customerActivitySection(visibleCustomers),
             ] else ...[
               _advancedDashboardTop(),
               const SizedBox(height: 14),
@@ -1765,8 +2675,23 @@ class _Kam360PageState extends State<Kam360Page>
               ],
 
               const SizedBox(height: 14),
-              _customerActivitySection(filteredCustomers),
+              _customerActivitySection(visibleCustomers),
             ],
+
+            if (visibleCustomers.length < filteredCustomers.length)
+              const Padding(
+                padding: EdgeInsets.fromLTRB(14, 8, 14, 30),
+                child: Center(
+                  child: SizedBox(
+                    height: 22,
+                    width: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.primaryLight,
+                    ),
+                  ),
+                ),
+              ),
           ],
         ],
       ),
@@ -2879,7 +3804,12 @@ class _Kam360PageState extends State<Kam360Page>
                     );
                   }),
                 ],
-                onChanged: (v) => setState(() => selectedKamCustomerId = v),
+                onChanged: (v) {
+                  setState(() {
+                    selectedKamCustomerId = v;
+                    kam360VisibleCount = 10;
+                  });
+                },
               ),
             ),
             const SizedBox(width: 8),
@@ -3002,7 +3932,12 @@ class _Kam360PageState extends State<Kam360Page>
         ),
         const SizedBox(height: 10),
         TextField(
-          onChanged: (v) => setState(() => kamCustomerSearch = v),
+          onChanged: (v) {
+            setState(() {
+              kamCustomerSearch = v;
+              kam360VisibleCount = 10;
+            });
+          },
           decoration: inputDecoration(
             hint: "Search customers...",
             icon: Icons.search_rounded,
@@ -5421,4 +6356,643 @@ class _TreeLinePainter extends CustomPainter {
 
 extension FirstOrNullExtension<E> on List<E> {
   E? get firstOrNull => isEmpty ? null : first;
+}
+
+class _QuickPlanActivityDialog extends StatefulWidget {
+  final DateTime date;
+  final String? initialStartTime;
+  final List<Map<String, dynamic>> customers;
+  final List<Map<String, dynamic>> teamMembers;
+  final List<String> activityTypes;
+  final bool saving;
+
+  const _QuickPlanActivityDialog({
+    required this.date,
+    required this.initialStartTime,
+    required this.customers,
+    required this.teamMembers,
+    required this.activityTypes,
+    required this.saving,
+  });
+
+  @override
+  State<_QuickPlanActivityDialog> createState() =>
+      _QuickPlanActivityDialogState();
+}
+
+class _QuickPlanActivityDialogState extends State<_QuickPlanActivityDialog> {
+  final titleController = TextEditingController(text: "New Meeting");
+  final locationController = TextEditingController();
+
+  String activityType = "In Person Meet";
+  int? customerId;
+  int? ownerId;
+
+  late DateTime fromDate;
+  late DateTime toDate;
+  late TimeOfDay startTime;
+  late TimeOfDay endTime;
+
+  bool allDay = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    fromDate = DateTime(
+      widget.date.year,
+      widget.date.month,
+      widget.date.day,
+    );
+    toDate = fromDate;
+
+    startTime = _parseTime(widget.initialStartTime ?? "09:00");
+    endTime = _addMinutes(startTime, 60);
+  }
+
+  @override
+  void dispose() {
+    titleController.dispose();
+    locationController.dispose();
+    super.dispose();
+  }
+
+  static TimeOfDay _parseTime(String value) {
+    final parts = value.split(":");
+    final hour = int.tryParse(parts.isNotEmpty ? parts[0] : "") ?? 9;
+    final minute = int.tryParse(parts.length > 1 ? parts[1] : "") ?? 0;
+    return TimeOfDay(hour: hour, minute: minute);
+  }
+
+  static TimeOfDay _addMinutes(TimeOfDay time, int minutes) {
+    final total = time.hour * 60 + time.minute + minutes;
+    return TimeOfDay(
+      hour: (total ~/ 60) % 24,
+      minute: total % 60,
+    );
+  }
+
+  String _dateText(DateTime date) {
+    return "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
+  }
+
+  String _displayDate(DateTime date) {
+    const months = [
+      "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+
+    const weekdays = [
+      "Monday", "Tuesday", "Wednesday", "Thursday",
+      "Friday", "Saturday", "Sunday",
+    ];
+
+    return "${weekdays[date.weekday - 1]}, "
+        "${date.day.toString().padLeft(2, '0')} "
+        "${months[date.month - 1]} "
+        "${date.year}";
+  }
+
+  String _time24(TimeOfDay time) {
+    return "${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}";
+  }
+
+  String _timeLabel(TimeOfDay time) {
+    final hour12 = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
+    final minute = time.minute.toString().padLeft(2, '0');
+    final period = time.period == DayPeriod.am ? "AM" : "PM";
+    return "$hour12:$minute $period";
+  }
+
+  int get durationMinutes {
+    if (allDay) return 0;
+
+    final start = DateTime(
+      fromDate.year,
+      fromDate.month,
+      fromDate.day,
+      startTime.hour,
+      startTime.minute,
+    );
+
+    final end = DateTime(
+      toDate.year,
+      toDate.month,
+      toDate.day,
+      endTime.hour,
+      endTime.minute,
+    );
+
+    final minutes = end.difference(start).inMinutes;
+    return minutes <= 0 ? 0 : minutes;
+  }
+
+  String get durationLabel {
+    if (allDay) return "All day";
+
+    final minutes = durationMinutes;
+    if (minutes <= 0) return "0m";
+
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
+
+    if (h > 0 && m > 0) return "${h}h ${m}m";
+    if (h > 0) return "${h}h";
+    return "${m}m";
+  }
+
+  Future<void> pickDate({required bool isFrom}) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: isFrom ? fromDate : toDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+
+    if (picked == null) return;
+
+    setState(() {
+      if (isFrom) {
+        fromDate = picked;
+        if (toDate.isBefore(fromDate)) {
+          toDate = fromDate;
+        }
+      } else {
+        toDate = picked;
+      }
+    });
+  }
+
+  Future<void> pickTime({required bool isStart}) async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: isStart ? startTime : endTime,
+    );
+
+    if (picked == null) return;
+
+    setState(() {
+      if (isStart) {
+        startTime = picked;
+        endTime = _addMinutes(picked, 60);
+      } else {
+        endTime = picked;
+      }
+    });
+  }
+
+  Map<String, dynamic> buildPayload() {
+    return {
+      "subject": titleController.text.trim(),
+      "activity_type": activityType,
+      "customer_id": customerId,
+      "location": locationController.text.trim(),
+      "all_day": allDay,
+      "activity_date": _dateText(fromDate),
+      "start_time": _time24(startTime),
+      "duration_minutes": durationMinutes,
+      "on_behalf_of": ownerId,
+    };
+  }
+
+  InputDecoration inputDecoration({String? hint}) {
+    return InputDecoration(
+      hintText: hint,
+      filled: true,
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: Color(0xffCBD5E1)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: Color(0xff2563EB)),
+      ),
+    );
+  }
+
+  Widget label(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 7),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: Color(0xff64748B),
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+
+  Widget dateBox({
+    required String labelText,
+    required DateTime value,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          label(labelText),
+          InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 13),
+              decoration: BoxDecoration(
+                border: Border.all(color: const Color(0xffCBD5E1)),
+                borderRadius: BorderRadius.circular(10),
+                color: Colors.white,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _dateText(value),
+                      style: const TextStyle(
+                        color: Color(0xff0F172A),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const Icon(Icons.calendar_today_outlined, size: 16),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget timeBox({
+    required String labelText,
+    required TimeOfDay value,
+    required VoidCallback onTap,
+  }) {
+    return SizedBox(
+      width: 145,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          label(labelText),
+          InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 13),
+              decoration: BoxDecoration(
+                border: Border.all(color: const Color(0xffCBD5E1)),
+                borderRadius: BorderRadius.circular(10),
+                color: Colors.white,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _timeLabel(value),
+                      style: const TextStyle(
+                        color: Color(0xff0F172A),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const Icon(Icons.access_time, size: 17),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  int? currentUserId() {
+    final self = widget.teamMembers.cast<Map<String, dynamic>?>().firstWhere(
+          (u) => u?["is_self"] == true,
+      orElse: () => widget.teamMembers.isNotEmpty ? widget.teamMembers.first : null,
+    );
+
+    final raw = self?["id"] ?? self?["user_id"];
+    if (raw is num) return raw.toInt();
+    return int.tryParse(raw?.toString() ?? "");
+  }
+
+  String currentUserName() {
+    final self = widget.teamMembers.cast<Map<String, dynamic>?>().firstWhere(
+          (u) => u?["is_self"] == true,
+      orElse: () => widget.teamMembers.isNotEmpty ? widget.teamMembers.first : null,
+    );
+
+    return self?["full_name"]?.toString() ??
+        self?["user_name"]?.toString() ??
+        "Myself";
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentId = currentUserId();
+
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 24),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(
+          maxWidth: 590,
+          maxHeight: 720,
+        ),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 16, 18, 14),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                border: Border(
+                  bottom: BorderSide(color: Color(0xffE5E7EB)),
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          "Plan Activity",
+                          style: TextStyle(
+                            color: Color(0xff111827),
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _displayDate(fromDate),
+                          style: const TextStyle(
+                            color: Color(0xff64748B),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    label("Title"),
+                    TextField(
+                      controller: titleController,
+                      autofocus: true,
+                      decoration: inputDecoration(),
+                    ),
+                    const SizedBox(height: 16),
+
+                    label("Activity Type"),
+                    DropdownButtonFormField<String>(
+                      value: activityType,
+                      isExpanded: true,
+                      decoration: inputDecoration(),
+                      items: widget.activityTypes.map((type) {
+                        return DropdownMenuItem<String>(
+                          value: type,
+                          child: Text(type),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setState(() => activityType = value);
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    label("Customer"),
+                    DropdownButtonFormField<int?>(
+                      value: customerId,
+                      isExpanded: true,
+                      decoration: inputDecoration(),
+                      items: [
+                        const DropdownMenuItem<int?>(
+                          value: null,
+                          child: Text("None"),
+                        ),
+                        ...widget.customers.map((customer) {
+                          return DropdownMenuItem<int?>(
+                            value: customer["id"] is num
+                                ? (customer["id"] as num).toInt()
+                                : int.tryParse(customer["id"].toString()),
+                            child: Text(
+                              customer["customer_name"]?.toString() ??
+                                  customer["name"]?.toString() ??
+                                  "",
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        }),
+                      ],
+                      onChanged: (value) {
+                        setState(() => customerId = value);
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    Row(
+                      children: [
+                        dateBox(
+                          labelText: "From Date",
+                          value: fromDate,
+                          onTap: () => pickDate(isFrom: true),
+                        ),
+                        const SizedBox(width: 12),
+                        timeBox(
+                          labelText: "Start Time",
+                          value: startTime,
+                          onTap: () => pickTime(isStart: true),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    Row(
+                      children: [
+                        dateBox(
+                          labelText: "To Date",
+                          value: toDate,
+                          onTap: () => pickDate(isFrom: false),
+                        ),
+                        const SizedBox(width: 12),
+                        timeBox(
+                          labelText: "End Time",
+                          value: endTime,
+                          onTap: () => pickTime(isStart: false),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    label("Total Time"),
+                    Container(
+                      width: 130,
+                      height: 44,
+                      padding: const EdgeInsets.symmetric(horizontal: 13),
+                      decoration: BoxDecoration(
+                        color: const Color(0xffF8FAFC),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xffE2E8F0)),
+                      ),
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        durationLabel,
+                        style: const TextStyle(
+                          color: Color(0xff0F172A),
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                   /* const SizedBox(height: 14),
+
+                    Row(
+                      children: [
+                        Checkbox(
+                          value: allDay,
+                          onChanged: (value) {
+                            setState(() => allDay = value ?? false);
+                          },
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        const Text(
+                          "All day",
+                          style: TextStyle(
+                            color: Color(0xff475569),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),*/
+                    const SizedBox(height: 12),
+
+                    label("Location"),
+                    TextField(
+                      controller: locationController,
+                      decoration: inputDecoration(hint: "Optional"),
+                    ),
+                    const SizedBox(height: 16),
+
+                    label("Owner"),
+                    DropdownButtonFormField<int?>(
+                      value: ownerId,
+                      isExpanded: true,
+                      decoration: inputDecoration(),
+                      items: [
+                        DropdownMenuItem<int?>(
+                          value: null,
+                          child: Text(currentUserName()),
+                        ),
+                        ...widget.teamMembers.where((u) {
+                          final raw = u["id"] ?? u["user_id"];
+                          final id = raw is num
+                              ? raw.toInt()
+                              : int.tryParse(raw?.toString() ?? "");
+                          return id != null && id != currentId;
+                        }).map((member) {
+                          final raw = member["id"] ?? member["user_id"];
+                          final id = raw is num
+                              ? raw.toInt()
+                              : int.tryParse(raw?.toString() ?? "");
+
+                          return DropdownMenuItem<int?>(
+                            value: id,
+                            child: Text(
+                              member["full_name"]?.toString() ??
+                                  member["user_name"]?.toString() ??
+                                  "User",
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        }),
+                      ],
+                      onChanged: (value) {
+                        setState(() => ownerId = value);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 14),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                border: Border(
+                  top: BorderSide(color: Color(0xffE5E7EB)),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  SizedBox(
+                    height: 40,
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        minimumSize: const Size(0, 0),
+                      ),
+                      child: const Text("Cancel"),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  SizedBox(
+                    height: 40,
+                    child: ElevatedButton(
+                      onPressed: widget.saving
+                          ? null
+                          : () {
+                        final payload = buildPayload();
+                        if (payload["subject"].toString().trim().isEmpty) {
+                          return;
+                        }
+                        Navigator.pop(context, payload);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xff0F172A),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 22),
+                        minimumSize: const Size(0, 0),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: Text(widget.saving ? "Saving..." : "Save"),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

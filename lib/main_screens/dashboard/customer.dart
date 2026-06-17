@@ -13,7 +13,7 @@ class CustomersTab extends StatefulWidget {
 }
 
 class _CustomersTabState extends State<CustomersTab> {
-  static const String baseUrl = 'http://103.110.236.187:3076/api/v1';
+  static const String baseUrl = 'https://ascent.crm.azcentrix.com:4447/api/v1';
 
   bool loading = true;
   String? errorText;

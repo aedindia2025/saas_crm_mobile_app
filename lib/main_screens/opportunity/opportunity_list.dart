@@ -3,7 +3,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../api_helpers/api_method.dart';
 
 import '../Leads/view_lead.dart';
-import 'edit_opportunity.dart';
+import 'new_opportunity_page.dart';
+import 'opportunity_view_page.dart';
 
 class AppColors {
   static const Color primaryDark = Color(0xFF103050);
@@ -35,9 +36,19 @@ class OpportunityList extends StatefulWidget {
 }
 
 class _OpportunityListState extends State<OpportunityList> {
-  static const String baseUrl = 'http://103.110.236.187:3076/api/v1';
+  static const String baseUrl = 'https://ascent.crm.azcentrix.com:4447/api/v1';
 
   bool showFilters = false;
+
+  final ScrollController _scrollController = ScrollController();
+
+  bool isLoadingMore = false;
+  int skip = 0;
+  final int limit = 10;
+  bool hasMore = true;
+
+  List<Map<String, dynamic>> opportunities = [];
+  List<Map<String, dynamic>> allOpportunities = [];
 
   List<Map<String, dynamic>> customers = [];
   List<Map<String, dynamic>> assignedUsers = [];
@@ -52,27 +63,56 @@ class _OpportunityListState extends State<OpportunityList> {
 
   bool isLoading = true;
   String? token;
+  String? userRole;
 
-
-
-  List<Map<String, dynamic>> opportunities = [];
 
   @override
   void initState() {
     super.initState();
+
+    _scrollController.addListener(() {
+      if (_scrollController.position.pixels >=
+          _scrollController.position.maxScrollExtent - 250 &&
+          hasMore &&
+          !isLoadingMore &&
+          !isLoading) {
+        loadMoreOpportunitiesFromLocal();
+      }
+    });
+
     getSharedPref();
   }
 
-
   @override
   void dispose() {
+    _scrollController.dispose();
     searchController.dispose();
     super.dispose();
+  }
+
+  void loadMoreOpportunitiesFromLocal() {
+    if (!hasMore || isLoadingMore) return;
+
+    setState(() => isLoadingMore = true);
+
+    Future.delayed(const Duration(milliseconds: 200), () {
+      if (!mounted) return;
+
+      final nextItems = allOpportunities.skip(skip).take(limit).toList();
+
+      setState(() {
+        opportunities.addAll(nextItems);
+        skip = opportunities.length;
+        hasMore = opportunities.length < allOpportunities.length;
+        isLoadingMore = false;
+      });
+    });
   }
 
   Future<void> getSharedPref() async {
     final prefs = await SharedPreferences.getInstance();
     token = prefs.getString('auth_token');
+    userRole = prefs.getString('role');
 
     if (token == null) {
       setState(() => isLoading = false);
@@ -379,7 +419,14 @@ class _OpportunityListState extends State<OpportunityList> {
     if (token == null) return;
 
     try {
-      setState(() => isLoading = true);
+      setState(() {
+        isLoading = true;
+        isLoadingMore = false;
+        skip = 0;
+        hasMore = true;
+        opportunities.clear();
+        allOpportunities.clear();
+      });
 
       final query = <String, String>{};
 
@@ -414,15 +461,28 @@ class _OpportunityListState extends State<OpportunityList> {
         })
             .map((e) => Map<String, dynamic>.from(e))
             .where((item) {
-          final createdAt = DateTime.tryParse(item['created_at']?.toString() ?? '');
+          final createdAt = DateTime.tryParse(
+            item['created_at']?.toString() ?? '',
+          );
 
           if (fromDate != null && createdAt != null) {
-            final start = DateTime(fromDate!.year, fromDate!.month, fromDate!.day);
+            final start = DateTime(
+              fromDate!.year,
+              fromDate!.month,
+              fromDate!.day,
+            );
             if (createdAt.isBefore(start)) return false;
           }
 
           if (toDate != null && createdAt != null) {
-            final end = DateTime(toDate!.year, toDate!.month, toDate!.day, 23, 59, 59);
+            final end = DateTime(
+              toDate!.year,
+              toDate!.month,
+              toDate!.day,
+              23,
+              59,
+              59,
+            );
             if (createdAt.isAfter(end)) return false;
           }
 
@@ -430,16 +490,36 @@ class _OpportunityListState extends State<OpportunityList> {
         })
             .toList();
 
+        if (!mounted) return;
+
         setState(() {
-          opportunities = filtered;
+          allOpportunities = filtered;
+
+          opportunities = allOpportunities.take(limit).toList();
+          skip = opportunities.length;
+          hasMore = opportunities.length < allOpportunities.length;
+
           isLoading = false;
+          isLoadingMore = false;
         });
       } else {
-        setState(() => isLoading = false);
+        if (!mounted) return;
+
+        setState(() {
+          isLoading = false;
+          isLoadingMore = false;
+        });
+
         showError(response['data']?.toString() ?? 'Error fetching opportunities');
       }
     } catch (e) {
-      setState(() => isLoading = false);
+      if (!mounted) return;
+
+      setState(() {
+        isLoading = false;
+        isLoadingMore = false;
+      });
+
       showError(e.toString());
     }
   }
@@ -480,7 +560,28 @@ class _OpportunityListState extends State<OpportunityList> {
     }
   }
 
-  void openLeadViewPage(Map<String, dynamic> item) {
+  // View an opportunity. Direct opportunities (and any converted lead) open the
+  // new 5-tab OpportunityViewPage; anything without a valid id falls back to the
+  // read-only LeadViewPage.
+  void openLeadViewPage(
+      Map<String, dynamic> item, {
+        TabKey? initialTab,
+      }) {
+    final id = int.tryParse(item['id']?.toString() ?? '');
+
+    if (id != null && id > 0) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => OpportunityViewPage(
+            leadId: id,
+            initialTab: initialTab,
+          ),
+        ),
+      ).then((_) => refreshList());
+      return;
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -646,6 +747,45 @@ class _OpportunityListState extends State<OpportunityList> {
                     ],
                   ),
                 ),
+
+                const SizedBox(width: 20),
+
+                GestureDetector(
+                  onTap: () async {
+                    // New create flow. NewOpportunityPage itself opens the live
+                    // OpportunityViewPage (Quotations tab) on save, so here we
+                    // just refresh the list when we come back.
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const NewOpportunityPage(),
+                      ),
+                    );
+                    await refreshList();
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Icon(Icons.add, size: 16, color: AppColors.primaryDark),
+                        SizedBox(width: 4),
+                        Text(
+                          'Add',
+                          style: TextStyle(
+                            color: AppColors.primaryDark,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 14),
@@ -757,19 +897,24 @@ class _OpportunityListState extends State<OpportunityList> {
         }
 
         if (value == 'edit') {
-          final updated = await Navigator.push(
+          final id = int.tryParse(item['id']?.toString() ?? '');
+
+          if (id == null || id == 0) {
+            showError('Opportunity ID not found');
+            return;
+          }
+
+          // Both direct opportunities and converted leads open the 5-tab
+          // OpportunityViewPage. It lands on the Lead Details tab, which has
+          // the inline edit form (for a plain lead it shows only that tab).
+          await Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => EditOpportunity(
-                opportunityData: Map<String, dynamic>.from(item),
-                tenantSlug: widget.tenantSlug,
-              ),
+              builder: (_) => OpportunityViewPage(leadId: id),
             ),
           );
 
-          if (updated == true) {
-            await refreshList();
-          }
+          await refreshList();
         }
 
         if (value == 'delete') {
@@ -824,154 +969,634 @@ class _OpportunityListState extends State<OpportunityList> {
     final contact = safeText(item['contact_person'], '');
     final createdAt = item['created_at'];
     final followUp = item['follow_up'];
-    final refId = safeText(item['opportunity_ref_id'] ?? item['lead_ref_id'] ?? item['id'], '');
+    final timeline = item['timeline'];
+
+    final refId = safeText(
+      item['opportunity_ref_id'] ?? item['lead_ref_id'] ?? item['id'],
+      '',
+    );
+
+    final source = safeText(
+      item['source'] ?? item['lead_source'] ?? item['source_type'],
+      'Direct Enquiry',
+    );
+
+    final sourceSub = safeText(
+      item['source_detail'] ?? item['lead_source_detail'],
+      'Direct',
+    );
+
+    final mobile = safeText(item['mobile'], '');
+    final email = safeText(item['email'], '');
+
+    final lastActivity = safeText(
+      item['last_activity'] ?? item['last_activity_type'],
+      statusText == 'Converted' ? 'Convert' : 'Create',
+    );
+
+    final statusClr = statusColor(statusText);
+    final priorityClr = priorityColor(priority);
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+      margin: const EdgeInsets.fromLTRB(14, 0, 14, 14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xffE8ECF0)),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xffE6ECF3)),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primaryDark.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
+            color: AppColors.primaryDark.withOpacity(0.07),
+            blurRadius: 22,
+            offset: const Offset(0, 9),
           ),
         ],
       ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () => openOpportunityDetailsDialog(item),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
-              decoration: BoxDecoration(
-                color: AppColors.primaryDeep.withOpacity(0.03),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                border: const Border(
-                  bottom: BorderSide(color: Color(0xffE8ECF0)),
-                ),
-              ),
-              child: Row(
-                children: [
-                  _avatar(title),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w900,
-                            color: AppColors.primaryDeep,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Row(
-                          children: [
-                            const Icon(Icons.tag_outlined, size: 12, color: Colors.grey),
-                            const SizedBox(width: 2),
-                            Expanded(
-                              child: Text(
-                                '# $refId',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.grey,
-                                  fontWeight: FontWeight.w700,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: () => openOpportunityDetailsDialog(item),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(22),
+            child: Column(
+              children: [
+
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 14, 10, 14),
+                  child: Column(
+                    children: [
+                      /// OPPORTUNITY HEADER
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            height: 44,
+                            width: 44,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              gradient: AppColors.headerGradient,
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.primaryDark.withOpacity(.16),
+                                  blurRadius: 14,
+                                  offset: const Offset(0, 6),
                                 ),
+                              ],
+                            ),
+                            child: Text(
+                              initials(title),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w900,
                               ),
                             ),
+                          ),
+
+                          const SizedBox(width: 12),
+
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _opportunityLabel('OPPORTUNITY'),
+                                const SizedBox(height: 5),
+                                Text(
+                                  title,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 15.5,
+                                    height: 1.22,
+                                    color: Color(0xff0F172A),
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                const SizedBox(height: 5),
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.business_outlined,
+                                      size: 13,
+                                      color: Color(0xff94A3B8),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Expanded(
+                                      child: Text(
+                                        customer,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: Color(0xff94A3B8),
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(width: 8),
+
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 7,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primaryDark.withOpacity(.07),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: AppColors.primaryDark.withOpacity(.10),
+                                  ),
+                                ),
+                                child: Text(
+                                  '₹${formatCurrency(item['est_value'])}',
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    color: AppColors.primaryDark,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              opportunityMenu(item),
+                            ],
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 14),
+
+                      /// STATUS / PRIORITY / STAGE
+                      Row(
+                        children: [
+                          if (statusText.isNotEmpty)
+                            _modernOpportunityStatusPill(statusText),
+                          if (priority.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            _modernOpportunityPriorityPill(priority, priorityClr),
                           ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        formatCurrency(item['est_value']),
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w900,
-                          color: AppColors.primaryDark,
-                        ),
+                          const Spacer(),
+                          _stagePill(statusText == 'Converted' ? 'S3' : 'S2'),
+                        ],
                       ),
-                      const SizedBox(height: 4),
-                      opportunityMenu(item),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      _statusBadge(statusText),
-                      const SizedBox(width: 6),
-                      if (priority.isNotEmpty)
-                        _chip(
-                          priority,
-                          priorityColor(priority).withOpacity(0.12),
-                          priorityColor(priority),
-                        ),
-                      const SizedBox(width: 6),
-                      _chip(
-                        statusText == 'Converted' ? 'S3' : 'S2',
-                        statusText == 'Converted'
-                            ? const Color(0xffECFDF5)
-                            : const Color(0xffF3E8FF),
-                        statusText == 'Converted'
-                            ? const Color(0xff059669)
-                            : const Color(0xff7C3AED),
+
+                      const SizedBox(height: 14),
+                      _opportunityThinDivider(),
+                      const SizedBox(height: 13),
+
+                      /// SOURCE + OWNER
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: _premiumOpportunityInfo(
+                              label: 'SOURCE',
+                              value: source,
+                              subValue: sourceSub,
+                              icon: Icons.source_outlined,
+                              color: AppColors.primaryLight,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: _premiumOpportunityInfo(
+                              label: 'OWNER',
+                              value: assignedTo,
+                              subValue: approval.toLowerCase() == 'approved'
+                                  ? 'Approved'
+                                  : '',
+                              icon: Icons.person_pin_circle_outlined,
+                              color: const Color(0xff7C3AED),
+                            ),
+                          ),
+                        ],
                       ),
-                      const Spacer(),
-                      if (approval.toLowerCase() == 'approved')
-                        _chip(
-                          'Approved',
-                          const Color(0xffECFDF5),
-                          const Color(0xff059669),
-                        ),
+
+                      const SizedBox(height: 13),
+                      _opportunityThinDivider(),
+                      const SizedBox(height: 13),
+
+                      /// TIMELINE + CONTACT
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: _premiumOpportunityTimeline(
+                              timeline: timeline,
+                              followUp: followUp,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: _premiumOpportunityContact(
+                              contact: contact,
+                              mobile: mobile,
+                              email: email,
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 13),
+                      _opportunityThinDivider(),
+                      const SizedBox(height: 13),
+
+                      /// LAST ACTIVITY + REF
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _premiumOpportunityInfo(
+                              label: 'LAST ACTIVITY',
+                              value: lastActivity,
+                              subValue: formatDate(createdAt),
+                              icon: Icons.history_rounded,
+                              color: const Color(0xff2563EB),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Flexible(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 11,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xffF8FAFC),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: const Color(0xffE2E8F0),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.tag_outlined,
+                                    size: 14,
+                                    color: Color(0xff64748B),
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Flexible(
+                                    child: Text(
+                                      refId.isEmpty ? 'Ref -' : '#$refId',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: Color(0xff64748B),
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(child: smallInfo(Icons.business_outlined, customer)),
-                      Expanded(child: smallInfo(Icons.person_outline, contact)),
-                    ],
-                  ),
-                  const SizedBox(height: 7),
-                  Row(
-                    children: [
-                      Expanded(child: smallInfo(Icons.assignment_ind_outlined, assignedTo)),
-                      Expanded(child: smallInfo(Icons.event_available_outlined, 'Follow: ${formatDate(followUp)}')),
-                    ],
-                  ),
-                  const SizedBox(height: 7),
-                  Row(
-                    children: [
-                      Expanded(child: smallInfo(Icons.calendar_today_outlined, formatDate(createdAt))),
-                      Expanded(child: smallInfo(Icons.access_time, formatTime(createdAt))),
-                    ],
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _opportunityLabel(String text) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 10,
+            letterSpacing: .7,
+            color: Color(0xff64748B),
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(width: 3),
+        const Icon(
+          Icons.unfold_more_rounded,
+          size: 11,
+          color: Color(0xffCBD5E1),
+        ),
+      ],
+    );
+  }
+
+  Widget _premiumOpportunityInfo({
+    required String label,
+    required String value,
+    required String subValue,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          height: 32,
+          width: 32,
+          decoration: BoxDecoration(
+            color: color.withOpacity(.10),
+            borderRadius: BorderRadius.circular(11),
+          ),
+          child: Icon(icon, size: 17, color: color),
+        ),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _opportunityLabel(label),
+              const SizedBox(height: 5),
+              Text(
+                value.trim().isEmpty ? '-' : value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 13,
+                  height: 1.2,
+                  color: Color(0xff0F172A),
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              if (subValue.trim().isNotEmpty) ...[
+                const SizedBox(height: 3),
+                Text(
+                  subValue,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11.3,
+                    color: Color(0xff94A3B8),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _premiumOpportunityTimeline({
+    required dynamic timeline,
+    required dynamic followUp,
+  }) {
+    final timelineText = formatDate(timeline);
+    final followText = formatDate(followUp);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          height: 32,
+          width: 32,
+          decoration: BoxDecoration(
+            color: const Color(0xffFFF7ED),
+            borderRadius: BorderRadius.circular(11),
+          ),
+          child: const Icon(
+            Icons.event_available_outlined,
+            size: 17,
+            color: Color(0xffF59E0B),
+          ),
+        ),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _opportunityLabel('TIMELINE'),
+              const SizedBox(height: 5),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      timelineText,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12.7,
+                        color: Color(0xffF59E0B),
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  const Icon(
+                    Icons.warning_amber_rounded,
+                    size: 13,
+                    color: Color(0xffF59E0B),
+                  ),
+                ],
+              ),
+              if (followText != '-') ...[
+                const SizedBox(height: 3),
+                Text(
+                  'Timeline: $followText',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11.3,
+                    color: Color(0xff94A3B8),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _premiumOpportunityContact({
+    required String contact,
+    required String mobile,
+    required String email,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          height: 32,
+          width: 32,
+          decoration: BoxDecoration(
+            color: const Color(0xffECFDF5),
+            borderRadius: BorderRadius.circular(11),
+          ),
+          child: const Icon(
+            Icons.support_agent_rounded,
+            size: 17,
+            color: Color(0xff059669),
+          ),
+        ),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _opportunityLabel('CONTACT'),
+              const SizedBox(height: 5),
+              Text(
+                contact.trim().isEmpty ? '-' : contact,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: Color(0xff0F172A),
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Row(
+                children: [
+                  if (mobile.isNotEmpty)
+                    _opportunityCircleIcon(
+                      icon: Icons.phone_outlined,
+                      color: const Color(0xff059669),
+                    ),
+                  if (email.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    _opportunityCircleIcon(
+                      icon: Icons.mail_outline_rounded,
+                      color: const Color(0xff2563EB),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _modernOpportunityStatusPill(String status) {
+    final color = statusColor(status);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(.10),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withOpacity(.22)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            height: 6,
+            width: 6,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            status,
+            style: TextStyle(
+              fontSize: 11.5,
+              color: color,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _modernOpportunityPriorityPill(String priority, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(.10),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withOpacity(.18)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.local_fire_department_rounded,
+            size: 13,
+            color: color,
+          ),
+          const SizedBox(width: 5),
+          Text(
+            priority,
+            style: TextStyle(
+              fontSize: 11.5,
+              color: color,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _stagePill(String stage) {
+    final isS3 = stage == 'S3';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: isS3 ? const Color(0xffECFDF5) : const Color(0xffF3E8FF),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        stage,
+        style: TextStyle(
+          fontSize: 10.5,
+          color: isS3 ? const Color(0xff059669) : const Color(0xff7C3AED),
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+
+  Widget _opportunityCircleIcon({
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      height: 25,
+      width: 25,
+      decoration: BoxDecoration(
+        color: color.withOpacity(.10),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Icon(
+        icon,
+        size: 14,
+        color: color,
+      ),
+    );
+  }
+
+  Widget _opportunityThinDivider() {
+    return Container(
+      height: 1,
+      color: const Color(0xffE8ECF0),
     );
   }
 
@@ -1024,6 +1649,26 @@ class _OpportunityListState extends State<OpportunityList> {
                 detailRow('Follow Up', formatDate(item['follow_up'])),
                 detailRow('Address', safeText(item['customer_address'], '')),
                 detailRow('Notes', safeText(item['notes'], '')),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      openLeadViewPage(item);
+                    },
+                    icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                    label: const Text('Open Opportunity'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryLight,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 12),
                 productsBox(item),
               ],
@@ -1184,9 +1829,11 @@ class _OpportunityListState extends State<OpportunityList> {
       color: AppColors.primaryLight,
       onRefresh: refreshList,
       child: ListView(
+        controller: _scrollController,
         padding: EdgeInsets.zero,
         children: [
           filterPanel(),
+
           if (opportunities.isEmpty)
             const Padding(
               padding: EdgeInsets.only(top: 80),
@@ -1202,7 +1849,23 @@ class _OpportunityListState extends State<OpportunityList> {
             )
           else
             ...opportunities.map(opportunityCard),
-          const SizedBox(height: 24),
+
+          if (isLoadingMore)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(14, 8, 14, 90),
+              child: Center(
+                child: SizedBox(
+                  height: 22,
+                  width: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.primaryLight,
+                  ),
+                ),
+              ),
+            )
+          else
+            const SizedBox(height: 90),
         ],
       ),
     );

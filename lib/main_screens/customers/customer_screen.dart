@@ -36,7 +36,10 @@ class Customer extends StatefulWidget {
 }
 
 class _CustomerState extends State<Customer>  {
-  static const String baseUrl = 'http://103.110.236.187:3076/api/v1';
+  static const String baseUrl = 'https://ascent.crm.azcentrix.com:4447/api/v1';
+
+  final ScrollController _scrollController = ScrollController();
+
   String tenantSlug = '';
 
   String intelligenceSubTab = 'overview';
@@ -56,7 +59,7 @@ class _CustomerState extends State<Customer>  {
   String searchText = '';
   String statusFilter = '';
   int skip = 0;
-  final int limit = 20;
+  final int limit = 10;
   int totalCustomers = 0;
   bool hasMore = true;
 
@@ -70,11 +73,23 @@ class _CustomerState extends State<Customer>  {
   @override
   void initState() {
     super.initState();
+
+    _scrollController.addListener(() {
+      if (_scrollController.position.pixels >=
+          _scrollController.position.maxScrollExtent - 250 &&
+          hasMore &&
+          !isLoadingMore &&
+          !isLoading) {
+        fetchCustomerList(reset: false);
+      }
+    });
+
     getSharedPref();
   }
 
   @override
   void dispose() {
+    _scrollController.dispose();
     searchController.dispose();
     cityController.dispose();
     super.dispose();
@@ -764,28 +779,28 @@ class _CustomerState extends State<Customer>  {
           children: [
 
 
-              GestureDetector(
-                onTap: () {
-                  setState(() {
-                    show360View = false;
-                    Navigator.pop(context);
-                  });
-                },
-                child: Container(
-                  height: 36,
-                  width: 36,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.14),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Icons.arrow_back,
-                    size: 20,
-                    color: Colors.white,
-                  ),
+            GestureDetector(
+              onTap: () {
+                setState(() {
+                  show360View = false;
+                  Navigator.pop(context);
+                });
+              },
+              child: Container(
+                height: 36,
+                width: 36,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.14),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.arrow_back,
+                  size: 20,
+                  color: Colors.white,
                 ),
               ),
-              const SizedBox(width: 10),
+            ),
+            const SizedBox(width: 10),
 
             Expanded(
               child: Column(
@@ -950,25 +965,30 @@ class _CustomerState extends State<Customer>  {
                   ),
                 ),
                 const SizedBox(width: 8),
-                OutlinedButton(
-                  onPressed: () {
-                    searchController.clear();
-                    cityController.clear();
-                    searchText = '';
-                    cityText = '';
-                    statusFilter = '';
-                    setState(() {});
-                    fetchCustomerList(reset: true);
-                  },
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-                    side: BorderSide(color: Colors.grey.shade300),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                SizedBox(
+                  width: 90,
+                  child: OutlinedButton(
+                    onPressed: () {
+                      searchController.clear();
+                      cityController.clear();
+                      searchText = '';
+                      cityText = '';
+                      statusFilter = '';
+                      setState(() {});
+                      fetchCustomerList(reset: true);
+                    },
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(0, 44),
+                      side: BorderSide(color: Colors.grey.shade300),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text('Clear'),
                   ),
-                  child: const Text('Clear'),
                 ),
               ],
-            ),
+            )
           ],
         ],
       ),
@@ -1015,53 +1035,48 @@ class _CustomerState extends State<Customer>  {
         child: CircularProgressIndicator(color: AppColors.primaryLight),
       );
     }
+
     return RefreshIndicator(
       color: AppColors.primaryLight,
       onRefresh: refreshAll,
       child: ListView(
+        controller: _scrollController,
         padding: EdgeInsets.zero,
         children: [
           filterPanel(),
+
           if (customers.isEmpty)
             const Padding(
               padding: EdgeInsets.only(top: 80),
               child: Center(
                 child: Text(
                   'No customers found',
-                  style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey,
+                  ),
                 ),
               ),
             )
           else
             ...customers.map(customerCard),
-          if (customers.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 6, 14, 90),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: hasMore && !isLoadingMore ? () => fetchCustomerList(reset: false) : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryDark,
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: Colors.grey.shade200,
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    elevation: 0,
-                  ),
-                  child: isLoadingMore
-                      ? const SizedBox(
-                    height: 18,
-                    width: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                  )
-                      : Text(
-                    hasMore ? 'Load More' : 'No More Customers',
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+
+          if (isLoadingMore)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(14, 8, 14, 90),
+              child: Center(
+                child: SizedBox(
+                  height: 22,
+                  width: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.primaryLight,
                   ),
                 ),
               ),
-            ),
+            )
+          else
+            const SizedBox(height: 90),
         ],
       ),
     );
@@ -1081,186 +1096,524 @@ class _CustomerState extends State<Customer>  {
     final potential = safeText(item['account_potential'], '');
     final vertical = safeText(item['customer_vertical'], '');
     final name = safeText(item['customer_name'], '');
+    final groupName = safeText(item['group_name'], '');
     final city = safeText(item['billing_city'], '');
     final state = safeText(item['billing_state'], '');
+    final assignedTo = safeText(item['assigned_user_name'], '-');
+
+    final contactName = safeText(primaryContact?['contact_name'], '-');
+    final contactMobile = safeText(primaryContact?['mobile'], '');
+    final contactEmail = safeText(primaryContact?['office_email'], '');
+
+    final lastActivityType = safeText(
+      item['last_activity_type'] ?? item['last_activity'],
+      'Phone Call',
+    );
+
+    final lastActivityDate = safeText(
+      item['last_activity_date'] ?? item['updated_at'] ?? item['created_at'],
+      '-',
+    );
 
     final isExpanded = expandedActionCards.contains(item['id']);
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+      margin: const EdgeInsets.fromLTRB(14, 0, 14, 14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xffE8ECF0)),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xffE6EDF5)),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primaryDark.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
+            color: AppColors.primaryDark.withOpacity(0.07),
+            blurRadius: 22,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
-      child: Column(
-        children: [
-          // ── Card Header ──
-          Container(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-            decoration: BoxDecoration(
-              color: AppColors.primaryDeep.withOpacity(0.03),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-              border: Border(bottom: BorderSide(color: const Color(0xffE8ECF0))),
-            ),
-            child: Row(
-              children: [
-                _avatar(name, size: 38, fontSize: 13),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        name,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.primaryDeep,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Row(
-                        children: [
-                          if (city.isNotEmpty || state.isNotEmpty) ...[
-                            const Icon(Icons.location_on_outlined, size: 12, color: Colors.grey),
-                            const SizedBox(width: 2),
-                            Text(
-                              '$city, $state'.replaceAll(RegExp(r'^,\s*|,\s*$'), ''),
-                              style: const TextStyle(fontSize: 11, color: Colors.grey),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Column(
+          children: [
+            /// PREMIUM HEADER
+            Container(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 13),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    AppColors.primaryLight.withOpacity(.12),
+                    AppColors.primaryDark.withOpacity(.04),
+                    Colors.white,
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                border: const Border(
+                  bottom: BorderSide(color: Color(0xffE6EDF5)),
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _avatar(name, size: 46, fontSize: 15),
+                  const SizedBox(width: 12),
+
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                name,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 15.5,
+                                  height: 1.22,
+                                  fontWeight: FontWeight.w900,
+                                  color: AppColors.primaryDeep,
+                                ),
+                              ),
                             ),
                           ],
+                        ),
+
+                        if (groupName.isNotEmpty) ...[
+                          const SizedBox(height: 5),
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.account_balance_outlined,
+                                size: 13,
+                                color: Color(0xff94A3B8),
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  groupName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xff94A3B8),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ],
-                      ),
-                    ],
+
+                        const SizedBox(height: 9),
+
+                        Wrap(
+                          spacing: 7,
+                          runSpacing: 7,
+                          children: [
+                            if (status.isNotEmpty) _statusBadge(status),
+                            if (potential.isNotEmpty)
+                              _premiumChip(
+                                text: potential,
+                                icon: Icons.local_fire_department_rounded,
+                                bg: const Color(0xffFFF7ED),
+                                fg: const Color(0xffC2410C),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      formatCurrency(item['potential_value']),
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w900,
-                        color: AppColors.primaryDark,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          if (isExpanded) {
-                            expandedActionCards.remove(item['id']);
-                          } else {
-                            expandedActionCards.add(item['id']);
-                          }
-                        });
-                      },
-                      child: Container(
-                        height: 30,
-                        width: 30,
-                        decoration: BoxDecoration(
-                          color: const Color(0xffF1F5F9),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(
-                          isExpanded ? Icons.close : Icons.more_vert,
-                          size: 18,
-                          color: AppColors.primarySlate,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          // ── Card Body ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    if (status.isNotEmpty) _statusBadge(status),
-                    const SizedBox(width: 6),
-                    if (vertical.isNotEmpty)
-                      _chip(vertical, const Color(0xffEEF2FF), AppColors.primaryLight),
-                    const SizedBox(width: 6),
-                    if (potential.isNotEmpty)
-                      _chip(potential, const Color(0xffECFDF5), const Color(0xff059669)),
-                    const Spacer(),
-                    if (primaryContact != null)
-                      _chip(
-                        safeText(primaryContact['contact_name'], ''),
-                        const Color(0xffF5F7FA),
-                        const Color(0xff64748B),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                // ── Action Row ──
-                if (isExpanded) ...[
-                  const SizedBox(height: 10),
-                  Divider(height: 1, color: Colors.grey.shade200),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+
+                  const SizedBox(width: 8),
+
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      _actionBtn(
-                        icon: Icons.auto_awesome,
-                        label: '360',
-                        color: AppColors.primaryLight,
-                        bg: const Color(0xffEEF2FF),
-                        onTap: () => load360(item),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 7,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryDark.withOpacity(.08),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: AppColors.primaryDark.withOpacity(.10),
+                          ),
+                        ),
+                        child: Text(
+                          formatCurrency(item['potential_value']),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.primaryDark,
+                          ),
+                        ),
                       ),
-                      _actionBtn(
-                        icon: Icons.remove_red_eye_outlined,
-                        label: 'View',
-                        color: const Color(0xff2563EB),
-                        bg: const Color(0xffEFF6FF),
-                        onTap: () => openQuickViewDialog(item),
-                      ),
-                      _actionBtn(
-                        icon: Icons.edit_outlined,
-                        label: 'Edit',
-                        color: const Color(0xff475569),
-                        bg: const Color(0xffF1F5F9),
-                        onTap: () => openEditCustomer(item),
-                      ),
-                      _actionBtn(
-                        icon: Icons.change_circle_outlined,
-                        label: 'Status',
-                        color: const Color(0xffD97706),
-                        bg: const Color(0xffFEF3C7),
-                        onTap: () => openStatusDialog(item['id'], status),
-                      ),
-                      _actionBtn(
-                        icon: Icons.delete_outline,
-                        label: 'Delete',
-                        color: const Color(0xffEF4444),
-                        bg: const Color(0xffFEF2F2),
-                        onTap: () => openDeleteDialog(item['id']),
+
+                      const SizedBox(height: 8),
+
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            if (isExpanded) {
+                              expandedActionCards.remove(item['id']);
+                            } else {
+                              expandedActionCards.add(item['id']);
+                            }
+                          });
+                        },
+                        child: Container(
+                          height: 32,
+                          width: 32,
+                          decoration: BoxDecoration(
+                            color: isExpanded
+                                ? const Color(0xffFEF2F2)
+                                : const Color(0xffF1F5F9),
+                            borderRadius: BorderRadius.circular(11),
+                          ),
+                          child: Icon(
+                            isExpanded
+                                ? Icons.close_rounded
+                                : Icons.more_horiz_rounded,
+                            size: 19,
+                            color: isExpanded
+                                ? const Color(0xffDC2626)
+                                : AppColors.primarySlate,
+                          ),
+                        ),
                       ),
                     ],
                   ),
                 ],
+              ),
+            ),
+
+            /// DETAILS BODY
+            /// DETAILS BODY - NO INNER CARDS
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 13, 14, 12),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _flatCustomerInfo(
+                          label: 'Segment',
+                          value: vertical,
+                          subValue: safeText(item['customer_type'], ''),
+                          icon: Icons.category_outlined,
+                          color: AppColors.primaryLight,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: _flatCustomerInfo(
+                          label: 'Location',
+                          value: city,
+                          subValue: state,
+                          icon: Icons.location_on_outlined,
+                          color: const Color(0xff0D9488),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 12),
+                  _thinDivider(),
+                  const SizedBox(height: 12),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _flatCustomerInfo(
+                          label: 'Assigned To',
+                          value: assignedTo,
+                          subValue: '',
+                          icon: Icons.person_pin_circle_outlined,
+                          color: const Color(0xff7C3AED),
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: _flatCustomerInfo(
+                          label: 'Last Activity',
+                          value: lastActivityType,
+                          subValue: _formatCustomerDate(lastActivityDate),
+                          icon: Icons.history_rounded,
+                          color: const Color(0xff2563EB),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 12),
+                  _thinDivider(),
+                  const SizedBox(height: 12),
+
+                  _flatContactInfo(
+                    name: contactName,
+                    mobile: contactMobile,
+                    email: contactEmail,
+                  ),
+
+                  /// KEEP PREVIOUS QUICK ACTIONS SAME
+                  if (isExpanded) ...[
+                    const SizedBox(height: 12),
+                    _thinDivider(),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _actionBtn(
+                          icon: Icons.auto_awesome,
+                          label: '360',
+                          color: AppColors.primaryLight,
+                          bg: const Color(0xffEEF2FF),
+                          onTap: () => load360(item),
+                        ),
+                        _actionBtn(
+                          icon: Icons.remove_red_eye_outlined,
+                          label: 'View',
+                          color: const Color(0xff2563EB),
+                          bg: const Color(0xffEFF6FF),
+                          onTap: () => openQuickViewDialog(item),
+                        ),
+                        _actionBtn(
+                          icon: Icons.edit_outlined,
+                          label: 'Edit',
+                          color: const Color(0xff475569),
+                          bg: const Color(0xffF1F5F9),
+                          onTap: () => openEditCustomer(item),
+                        ),
+                        _actionBtn(
+                          icon: Icons.change_circle_outlined,
+                          label: 'Status',
+                          color: const Color(0xffD97706),
+                          bg: const Color(0xffFEF3C7),
+                          onTap: () => openStatusDialog(item['id'], status),
+                        ),
+                        _actionBtn(
+                          icon: Icons.delete_outline,
+                          label: 'Delete',
+                          color: const Color(0xffEF4444),
+                          bg: const Color(0xffFEF2F2),
+                          onTap: () => openDeleteDialog(item['id']),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _flatCustomerInfo({
+    required String label,
+    required String value,
+    required String subValue,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          height: 30,
+          width: 30,
+          decoration: BoxDecoration(
+            color: color.withOpacity(.10),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, size: 16, color: color),
+        ),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label.toUpperCase(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 9.5,
+                  letterSpacing: .6,
+                  color: Color(0xff94A3B8),
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                value.trim().isEmpty ? '-' : value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  color: Color(0xff0F172A),
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              if (subValue.trim().isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  subValue,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xff94A3B8),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _flatContactInfo({
+    required String name,
+    required String mobile,
+    required String email,
+  }) {
+    return Row(
+      children: [
+        Container(
+          height: 34,
+          width: 34,
+          decoration: BoxDecoration(
+            color: const Color(0xffECFDF5),
+            borderRadius: BorderRadius.circular(11),
+          ),
+          child: const Icon(
+            Icons.support_agent_rounded,
+            size: 18,
+            color: Color(0xff059669),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'CONTACT',
+                style: TextStyle(
+                  fontSize: 9.5,
+                  letterSpacing: .6,
+                  color: Color(0xff94A3B8),
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                name.trim().isEmpty ? '-' : name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  color: Color(0xff0F172A),
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (mobile.isNotEmpty)
+          _roundMiniIcon(
+            icon: Icons.phone_outlined,
+            color: const Color(0xff059669),
+          ),
+        if (email.isNotEmpty) ...[
+          const SizedBox(width: 7),
+          _roundMiniIcon(
+            icon: Icons.mail_outline_rounded,
+            color: const Color(0xff64748B),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _thinDivider() {
+    return Container(
+      height: 1,
+      color: const Color(0xffE8ECF0),
+    );
+  }
+
+
+  Widget _roundMiniIcon({
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      height: 30,
+      width: 30,
+      decoration: BoxDecoration(
+        color: color.withOpacity(.10),
+        borderRadius: BorderRadius.circular(11),
+      ),
+      child: Icon(icon, size: 16, color: color),
+    );
+  }
+
+  Widget _premiumChip({
+    required String text,
+    required IconData icon,
+    required Color bg,
+    required Color fg,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: fg.withOpacity(.14)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: fg),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: TextStyle(
+              color: fg,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
             ),
           ),
         ],
       ),
     );
+  }
+
+  String _formatCustomerDate(String value) {
+    if (value.trim().isEmpty || value == '-') return '-';
+
+    try {
+      final date = DateTime.parse(value);
+      final day = date.day.toString().padLeft(2, '0');
+      final month = date.month.toString().padLeft(2, '0');
+      final year = date.year.toString();
+
+      return '$day-$month-$year';
+    } catch (_) {
+      if (value.contains('T')) {
+        return value.split('T').first;
+      }
+      return value;
+    }
   }
 
   Widget _actionBtn({
@@ -1452,6 +1805,7 @@ class _CustomerState extends State<Customer>  {
     }
   }
 
+  // ─── 360 Tab: Overview (matches web Tab360Overview) ───────────────────────
   Widget _tab360Overview(Map<String, dynamic> data) {
     final flags = data['flags'] is List ? data['flags'] as List : [];
     final pay = Map<String, dynamic>.from(data['payment_summary'] ?? {});
@@ -1459,60 +1813,59 @@ class _CustomerState extends State<Customer>  {
     final tend = Map<String, dynamic>.from(data['tender_summary'] ?? {});
     final wo = Map<String, dynamic>.from(data['workorder_summary'] ?? {});
     final kam = Map<String, dynamic>.from(data['kam_summary'] ?? {});
+    final ak = Map<String, dynamic>.from(data['assigned_kam'] ?? {});
+    final ps = data['products_supplied'] is List ? data['products_supplied'] as List : [];
     final contacts = data['contacts'] is List ? data['contacts'] as List : [];
+
+    final winRate = tend['win_rate'];
+    final winColor = (winRate != null && _numOf(winRate) >= 50)
+        ? const Color(0xff047857)
+        : const Color(0xffD97706);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Smart flags
         if (flags.isNotEmpty) smartFlags(flags),
 
+        // Revenue Snapshot
         _sectionLabel('Revenue Snapshot', Icons.currency_rupee),
-        _proKpiPanel([
-          _proKpi('Total Billed', formatCurrency(pay['total_billed']), Icons.receipt_long, AppColors.primaryDark),
-          _proKpi('Collected', formatCurrency(pay['total_paid']), Icons.check_circle_outline, const Color(0xff059669)),
-          _proKpi('Pending', formatCurrency(pay['total_pending']), Icons.schedule, const Color(0xffD97706)),
-          _proKpi('Overdue', formatCurrency(pay['overdue_amount']), Icons.warning_amber, const Color(0xffEF4444)),
+        _webKpiGrid([
+          _webKpiCard('Total Billed', formatCurrency(pay['total_billed'])),
+          _webKpiCard('Collected', formatCurrency(pay['total_paid']),
+              valueColor: const Color(0xff047857)),
+          _webKpiCard('Pending', formatCurrency(pay['total_pending']),
+              warn: _numOf(pay['total_pending']) > 0),
+          _webKpiCard(
+            'Avg Days to Pay',
+            pay['avg_days_to_pay'] == null ? '—' : '${_numOf(pay['avg_days_to_pay']).round()}d',
+            warn: pay['avg_days_to_pay'] != null && _numOf(pay['avg_days_to_pay']) > 45,
+          ),
         ]),
 
+        // Business Pipeline
         _sectionLabel('Business Pipeline', Icons.track_changes),
-        _proKpiPanel([
-          _proKpi('Leads', safeText(leads['total'], '0'), Icons.trending_up, const Color(0xff2563EB)),
-          _proKpi('Lead Value', formatCurrency(leads['pipeline_value']), Icons.currency_rupee, const Color(0xff2563EB)),
-          _proKpi('Tenders', safeText(tend['total'], '0'), Icons.description_outlined, AppColors.primaryLight),
-          _proKpi('Win Rate', '${safeText(tend['win_rate'], '0')}%', Icons.emoji_events_outlined, const Color(0xff059669)),
+        _webKpiGrid([
+          _webKpiCard('Lead Pipeline', formatCurrency(leads['pipeline_value']),
+              sub: '${safeText(leads['active'], '0')} active', valueColor: const Color(0xff1D4ED8)),
+          _webKpiCard('Tender Pipeline', formatCurrency(tend['pipeline']),
+              sub: '${safeText(tend['pending'], '0')} pending', valueColor: const Color(0xff6D28D9)),
+          _webKpiCard('WO Active Value', formatCurrency(wo['active_value']),
+              sub: '${safeText(wo['active'], '0')} WOs', valueColor: const Color(0xff1D4ED8)),
+          _webKpiCard('Win Rate', _winRateText(winRate), valueColor: winColor),
         ]),
 
-        _sectionLabel('Work Orders', Icons.inventory_2_outlined),
-        _proKpiPanel([
-          _proKpi('Total WOs', safeText(wo['total'], '0'), Icons.inventory_2_outlined, AppColors.primaryDark),
-          _proKpi('Active', safeText(wo['active'], '0'), Icons.play_circle_outline, const Color(0xff2563EB)),
-          _proKpi('Completed', safeText(wo['completed'], '0'), Icons.check_circle_outline, const Color(0xff059669)),
-          _proKpi('Delayed', safeText(wo['delayed'], '0'), Icons.warning_amber, const Color(0xffEF4444)),
-        ]),
+        // KAM Activity Health + Key Contacts
+        const SizedBox(height: 16),
+        _webOverviewKamCard(kam, ak),
+        const SizedBox(height: 12),
+        _webOverviewContactsCard(contacts),
 
-        _sectionLabel('KAM Activity Health', Icons.local_activity_outlined),
-        _proKpiPanel([
-          _proKpi('Activities', safeText(kam['total_activities'], '0'), Icons.timeline, AppColors.primaryLight),
-          _proKpi('Calls', safeText(kam['calls'], '0'), Icons.phone, const Color(0xff2563EB)),
-          _proKpi('Meetings', safeText(kam['meetings'], '0'), Icons.groups_outlined, const Color(0xff059669)),
-          _proKpi('Overdue Tasks', safeText(kam['overdue_tasks'], '0'), Icons.task_alt, const Color(0xffEF4444)),
-        ]),
-
-        _proListSection(
-          title: 'Key Contacts',
-          icon: Icons.contacts_outlined,
-          items: contacts,
-          empty: 'No contacts found',
-          builder: (item) {
-            final m = Map<String, dynamic>.from(item);
-            return _proInfoTile(
-              title: safeText(m['name'] ?? m['contact_name'], 'No Name'),
-              subtitle: '${safeText(m['designation'], '')} ${safeText(m['department'], '')}',
-              trailing: m['is_primary'] == true ? 'Primary' : '',
-              icon: Icons.person_outline,
-            );
-          },
-        ),
+        // Top Products Supplied
+        if (ps.isNotEmpty) ...[
+          _sectionLabel('Top Products Supplied', Icons.inventory_outlined),
+          ...ps.take(5).map((e) => _webTopProductTile(Map<String, dynamic>.from(e))),
+        ],
       ],
     );
   }
@@ -1619,7 +1972,8 @@ class _CustomerState extends State<Customer>  {
           danger: true,
           builder: (m) => _proInfoTile(
             title: safeText(m['tender_title'], 'Tender'),
-            subtitle: 'Our Bid ${formatCurrency(m['our_bid'])} • L1 ${safeText(m['l1_company'], '-')} ${formatCurrency(m['l1_amount'])} • Position ${safeText(m['our_position'], '-')}',
+            subtitle: 'Our Bid ${formatCurrency(m['our_bid'])} • L1 ${safeText(m['l1_company'], '-')} ${formatCurrency(m['l1_amount'])} • Position ${safeText(m['our_position'], '-')}'
+                '${safeText(m['loss_reason'], '').isNotEmpty ? ' • Reason ${safeText(m['loss_reason'], '')}' : ''}',
             trailing: safeText(m['result_date'], ''),
             icon: Icons.trending_down,
           ),
@@ -1813,33 +2167,64 @@ class _CustomerState extends State<Customer>  {
     );
   }
 
+  // ─── 360 Tab: KAM (matches web Tab360KAM) ─────────────────────────────────
   Widget _tab360KAM(Map<String, dynamic> data) {
     final kam = Map<String, dynamic>.from(data['kam_summary'] ?? {});
     final byType = Map<String, dynamic>.from(kam['by_type'] ?? {});
     final pending = kam['pending_actions'] is List ? kam['pending_actions'] as List : [];
     final recent = kam['recent'] is List ? kam['recent'] as List : [];
+    final daysSince = kam['days_since'];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _proKpiPanel([
-          _proKpi('Calls', safeText(kam['calls'], '0'), Icons.phone, const Color(0xff2563EB)),
-          _proKpi('Meetings', safeText(kam['meetings'], '0'), Icons.groups_outlined, const Color(0xff7C3AED)),
-          _proKpi('Demos', safeText(kam['demos'], '0'), Icons.video_call_outlined, const Color(0xff0D9488)),
-          _proKpi('Site Visits', safeText(kam['site_visits'], '0'), Icons.navigation_outlined, const Color(0xffD97706)),
-          _proKpi('Total Activities', safeText(kam['total_activities'], '0'), Icons.timeline, AppColors.primaryDark),
-          _proKpi('Completed', safeText(kam['completed'], '0'), Icons.check_circle_outline, const Color(0xff059669)),
-          _proKpi('Open Tasks', safeText(kam['open_tasks'], '0'), Icons.task_alt, const Color(0xffD97706)),
-          _proKpi('Overdue Tasks', safeText(kam['overdue_tasks'], '0'), Icons.warning_amber, const Color(0xffEF4444)),
-          _proKpi('Days Since Contact', kam['days_since'] == null ? 'Never' : '${kam['days_since']}d', Icons.schedule, AppColors.primarySlate),
-          _proKpi('Revenue Tracked', formatCurrency(kam['revenue_tracked']), Icons.currency_rupee, const Color(0xff7C3AED)),
-          _proKpi('KAM Collected', formatCurrency(kam['collected']), Icons.check_circle_outline, const Color(0xff059669)),
-          _proKpi('Uncollected', formatCurrency(kam['uncollected']), Icons.money_off, const Color(0xffEF4444)),
+        // Big counters: Calls / Meetings / Demos / Site Visits
+        GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: 2,
+          mainAxisSpacing: 10,
+          crossAxisSpacing: 10,
+          childAspectRatio: 2.4,
+          children: [
+            _webKamCounter('Calls', safeText(kam['calls'], '0'), Icons.phone,
+                const Color(0xffEFF6FF), const Color(0xff1D4ED8)),
+            _webKamCounter('Meetings', safeText(kam['meetings'], '0'), Icons.groups_outlined,
+                const Color(0xffF5F3FF), const Color(0xff6D28D9)),
+            _webKamCounter('Demos', safeText(kam['demos'], '0'), Icons.video_call_outlined,
+                const Color(0xffF0FDFA), const Color(0xff0F766E)),
+            _webKamCounter('Site Visits', safeText(kam['site_visits'], '0'), Icons.navigation_outlined,
+                const Color(0xffFFFBEB), const Color(0xffB45309)),
+          ],
+        ),
+
+        const SizedBox(height: 14),
+
+        // 8-item KPI grid
+        _webKpiGrid([
+          _webKpiCard('Total Activities', safeText(kam['total_activities'], '0')),
+          _webKpiCard('Completed', safeText(kam['completed'], '0'),
+              valueColor: const Color(0xff047857)),
+          _webKpiCard('Open Tasks', safeText(kam['open_tasks'], '0'),
+              warn: _numOf(kam['open_tasks']) > 0),
+          _webKpiCard('Overdue Tasks', safeText(kam['overdue_tasks'], '0'),
+              warn: _numOf(kam['overdue_tasks']) > 0),
+          _webKpiCard('Days Since Contact', daysSince == null ? 'Never' : '${daysSince}d',
+              warn: daysSince != null && _numOf(daysSince) > 30),
+          _webKpiCard('Revenue Tracked', formatCurrency(kam['revenue_tracked']),
+              valueColor: const Color(0xff6D28D9)),
+          _webKpiCard('KAM Collected', formatCurrency(kam['collected']),
+              valueColor: const Color(0xff047857)),
+          _webKpiCard('Uncollected', formatCurrency(kam['uncollected']),
+              warn: _numOf(kam['uncollected']) > 0),
         ]),
 
+        // Activity Mix (sorted desc, like web)
         if (byType.isNotEmpty)
-          _barSection('Activity Mix', Icons.bar_chart, byType, safeText(kam['total_activities'], '1')),
+          _barSection('Activity Mix', Icons.bar_chart, _sortDesc(byType),
+              safeText(kam['total_activities'], '1')),
 
+        // Overdue Follow-ups
         _listMini(
           title: 'Overdue Follow-ups',
           icon: Icons.warning_amber,
@@ -1854,6 +2239,7 @@ class _CustomerState extends State<Customer>  {
           ),
         ),
 
+        // Recent Activities
         _listMini(
           title: 'Recent Activities',
           icon: Icons.calendar_month_outlined,
@@ -1905,6 +2291,461 @@ class _CustomerState extends State<Customer>  {
 
         if (safeText(bg['total'], '0') == '0') _emptyBox('No BG / EMD instruments on record'),
       ],
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // WEB-MATCHED 360 HELPERS (Overview + KAM)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  double _numOf(dynamic v) => double.tryParse('${v ?? 0}') ?? 0;
+
+  String _winRateText(dynamic v) => v == null ? '—' : '${_numOf(v).toStringAsFixed(1)}%';
+
+  Map<String, dynamic> _sortDesc(Map<String, dynamic> m) {
+    final entries = m.entries.toList()
+      ..sort((a, b) => _numOf(b.value).compareTo(_numOf(a.value)));
+    return {for (final e in entries) e.key: e.value};
+  }
+
+  // Web KpiCard equivalent (label on top, value, optional sub, warn → rose).
+  Widget _webKpiCard(String label, String value,
+      {String? sub, Color? valueColor, bool warn = false}) {
+    final vc = warn ? const Color(0xffE11D48) : (valueColor ?? const Color(0xff1E293B));
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xffEEF2F7)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(.03), blurRadius: 6, offset: const Offset(0, 2)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            label.toUpperCase(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 9.5,
+              letterSpacing: .5,
+              fontWeight: FontWeight.w800,
+              color: Color(0xff94A3B8),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: vc),
+          ),
+          if (sub != null && sub.trim().isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              sub,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 10.5, color: Color(0xff94A3B8)),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _webKpiGrid(List<Widget> cards) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: GridView.count(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        crossAxisCount: 2,
+        mainAxisSpacing: 10,
+        crossAxisSpacing: 10,
+        childAspectRatio: 2.05,
+        children: cards,
+      ),
+    );
+  }
+
+  // Big KAM counter (icon + value + "X done").
+  Widget _webKamCounter(String label, String value, IconData icon, Color bg, Color fg) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: fg.withOpacity(.18)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            height: 38,
+            width: 38,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(.65),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, size: 18, color: fg),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: fg),
+                ),
+                Text(
+                  '$label done',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 10.5,
+                    color: Color(0xff94A3B8),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Single label/value row used inside the Overview KAM Activity Health card.
+  Widget _webKamRow(String label, String value, {bool warn = false, bool isLast = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 7),
+      decoration: BoxDecoration(
+        border: isLast ? null : const Border(bottom: BorderSide(color: Color(0xffF8FAFC))),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 12, color: Color(0xff64748B))),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: warn ? const Color(0xffD97706) : const Color(0xff334155),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Overview "KAM Activity Health" card — KAM user header + 6 rows.
+  Widget _webOverviewKamCard(Map<String, dynamic> kam, Map<String, dynamic> ak) {
+    final userName = safeText(ak['user_name'], '');
+    final role = safeText(ak['role'], '');
+    final daysSince = kam['days_since'];
+    final hasUser = userName.trim().isNotEmpty && userName != '-';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xffF1F5F9)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(.03), blurRadius: 8, offset: const Offset(0, 3)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'KAM ACTIVITY HEALTH',
+            style: TextStyle(
+              fontSize: 11,
+              letterSpacing: .6,
+              fontWeight: FontWeight.w800,
+              color: Color(0xff94A3B8),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (hasUser) ...[
+            Container(
+              padding: const EdgeInsets.only(bottom: 12),
+              decoration: const BoxDecoration(
+                border: Border(bottom: BorderSide(color: Color(0xffF1F5F9))),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    height: 34,
+                    width: 34,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: const Color(0xffDBEAFE),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      userName.substring(0, 1).toUpperCase(),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                        color: Color(0xff1D4ED8),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          userName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xff334155),
+                          ),
+                        ),
+                        if (role.trim().isNotEmpty && role != '-')
+                          Text(
+                            role,
+                            style: const TextStyle(fontSize: 11, color: Color(0xff94A3B8)),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 4),
+          ],
+          _webKamRow('Total Activities', safeText(kam['total_activities'], '0')),
+          _webKamRow('Calls Completed', safeText(kam['calls'], '0')),
+          _webKamRow('Meetings Done', safeText(kam['meetings'], '0')),
+          _webKamRow('Open Tasks', safeText(kam['open_tasks'], '0'),
+              warn: _numOf(kam['open_tasks']) > 0),
+          _webKamRow('Overdue Tasks', safeText(kam['overdue_tasks'], '0'),
+              warn: _numOf(kam['overdue_tasks']) > 0),
+          _webKamRow('Days Since Contact', daysSince == null ? 'Never' : '${daysSince}d',
+              warn: daysSince != null && _numOf(daysSince) > 30, isLast: true),
+        ],
+      ),
+    );
+  }
+
+  // Overview "Key Contacts" card.
+  Widget _webOverviewContactsCard(List contacts) {
+    final list = contacts.map((e) => Map<String, dynamic>.from(e)).toList();
+    final shown = list.take(5).toList();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xffF1F5F9)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(.03), blurRadius: 8, offset: const Offset(0, 3)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'KEY CONTACTS (${list.length})',
+            style: const TextStyle(
+              fontSize: 11,
+              letterSpacing: .6,
+              fontWeight: FontWeight.w800,
+              color: Color(0xff94A3B8),
+            ),
+          ),
+          const SizedBox(height: 10),
+          if (list.isEmpty)
+            const Text(
+              'No contacts on record',
+              style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Color(0xff94A3B8)),
+            )
+          else
+            ...shown.asMap().entries.map((entry) {
+              final i = entry.key;
+              final m = entry.value;
+              final isLast = i == shown.length - 1;
+              final name = safeText(m['name'], '');
+              final desig = safeText(m['designation'], '');
+              final dept = safeText(m['department'], '');
+              final sub = (desig.trim().isNotEmpty && desig != '-')
+                  ? desig
+                  : ((dept.trim().isNotEmpty && dept != '-') ? dept : '—');
+              final isPrimary = m['is_primary'] == true;
+              final mobile = safeText(m['mobile'], '');
+              final email = safeText(m['email'], '');
+
+              return Container(
+                padding: const EdgeInsets.symmetric(vertical: 7),
+                decoration: BoxDecoration(
+                  border: isLast ? null : const Border(bottom: BorderSide(color: Color(0xffF8FAFC))),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      height: 26,
+                      width: 26,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: const Color(0xffE0E7FF),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        name.trim().isEmpty ? '?' : name.trim().substring(0, 1).toUpperCase(),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xff4338CA),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            name.trim().isEmpty ? '-' : name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xff334155),
+                            ),
+                          ),
+                          Text(
+                            sub,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 11, color: Color(0xff94A3B8)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (isPrimary) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xffDBEAFE),
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                        child: const Text(
+                          'P',
+                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xff2563EB)),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    if (mobile.trim().isNotEmpty && mobile != '-')
+                      _webMiniContactIcon(Icons.phone, const Color(0xff059669), const Color(0xffECFDF5)),
+                    if (email.trim().isNotEmpty && email != '-') ...[
+                      const SizedBox(width: 5),
+                      _webMiniContactIcon(Icons.mail_outline, const Color(0xff2563EB), const Color(0xffEFF6FF)),
+                    ],
+                  ],
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  Widget _webMiniContactIcon(IconData icon, Color fg, Color bg) {
+    return Container(
+      height: 24,
+      width: 24,
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(7)),
+      child: Icon(icon, size: 12, color: fg),
+    );
+  }
+
+  // Overview "Top Products Supplied" row.
+  Widget _webTopProductTile(Map<String, dynamic> p) {
+    final oems = p['oems'] is List ? (p['oems'] as List) : [];
+    final oemText = oems.isEmpty
+        ? ''
+        : 'OEM: ${oems.take(2).join(', ')}${oems.length > 2 ? ' +${oems.length - 2}' : ''}';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.all(11),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xffF1F5F9)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(.03), blurRadius: 6, offset: const Offset(0, 2)),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            height: 30,
+            width: 30,
+            decoration: BoxDecoration(
+              color: const Color(0xffECFDF5),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.inventory_2_outlined, size: 15, color: Color(0xff059669)),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  safeText(p['product_name'], 'Product'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xff1E293B)),
+                ),
+                if (oemText.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    oemText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 10.5, color: Color(0xff94A3B8)),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          _webTinyBadge('Qty ${safeText(p['qty_supplied'], '0')}',
+              const Color(0xffD1FAE5), const Color(0xff047857)),
+          const SizedBox(width: 6),
+          _webTinyBadge(formatCurrency(p['total_value']),
+              const Color(0xffF1F5F9), const Color(0xff475569)),
+        ],
+      ),
+    );
+  }
+
+  Widget _webTinyBadge(String text, Color bg, Color fg) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(6)),
+      child: Text(text, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: fg)),
     );
   }
 
@@ -2183,171 +3024,6 @@ class _CustomerState extends State<Customer>  {
       ),
     );
   }
-
-  /*Widget intelligenceTab() {
-    if (selected360Customer == null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                height: 64,
-                width: 64,
-                decoration: BoxDecoration(
-                  color: const Color(0xffEEF2FF),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: const Icon(Icons.auto_awesome, size: 30, color: AppColors.primaryLight),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Customer 360 Intelligence',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.primaryDark),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Tap the 360 button on any customer card to view leads, tenders, work orders, payments, products, KAM activities, and smart flags.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey.shade500, height: 1.6, fontSize: 13),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (is360Loading) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const CircularProgressIndicator(color: AppColors.primaryLight),
-            const SizedBox(height: 12),
-            Text(
-              'Loading 360 data…',
-              style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.w600),
-            ),
-          ],
-        ),
-      );
-    }
-
-    final data = customer360Data ?? {};
-    final customer = Map<String, dynamic>.from(data['customer'] ?? {});
-    final lead = Map<String, dynamic>.from(data['lead_summary'] ?? {});
-    final tender = Map<String, dynamic>.from(data['tender_summary'] ?? {});
-    final wo = Map<String, dynamic>.from(data['workorder_summary'] ?? {});
-    final payment = Map<String, dynamic>.from(data['payment_summary'] ?? {});
-    final kam = Map<String, dynamic>.from(data['kam_summary'] ?? {});
-    final emdbg = Map<String, dynamic>.from(data['emdbg_summary'] ?? {});
-    final flags = data['flags'] is List ? data['flags'] as List : [];
-    final productsSupplied = data['products_supplied'] is List ? data['products_supplied'] as List : [];
-    final productsDemanded = data['products_demanded'] is List ? data['products_demanded'] as List : [];
-    final contacts = data['contacts'] is List ? data['contacts'] as List : [];
-
-    return RefreshIndicator(
-      color: AppColors.primaryLight,
-      onRefresh: () async {
-        if (selected360Customer != null) await load360(selected360Customer!);
-      },
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 90),
-        children: [
-          _intel360Header(customer),
-          if (flags.isNotEmpty) ...[const SizedBox(height: 12), smartFlags(flags)],
-          _sectionLabel('Revenue Snapshot', Icons.currency_rupee),
-          _proKpiPanel([
-            _proKpi('Total Billed', formatCurrency(payment['total_billed']), Icons.receipt_long, AppColors.primaryDark),
-            _proKpi('Collected', formatCurrency(payment['total_paid']), Icons.check_circle_outline, const Color(0xff059669)),
-            _proKpi('Pending', formatCurrency(payment['total_pending']), Icons.schedule, const Color(0xffD97706)),
-            _proKpi('Overdue', formatCurrency(payment['overdue_amount']), Icons.warning_amber, const Color(0xffEF4444)),
-          ]),
-
-          _sectionLabel('Business Pipeline', Icons.track_changes),
-          _proKpiPanel([
-            _proKpi('Leads', safeText(lead['total'], '0'), Icons.trending_up, const Color(0xff2563EB)),
-            _proKpi('Lead Value', formatCurrency(lead['pipeline_value']), Icons.currency_rupee, const Color(0xff2563EB)),
-            _proKpi('Tenders', safeText(tender['total'], '0'), Icons.description_outlined, AppColors.primaryLight),
-            _proKpi('Win Rate', '${safeText(tender['win_rate'], '0')}%', Icons.emoji_events_outlined, const Color(0xff059669)),
-          ]),
-
-          _sectionLabel('Work Orders', Icons.inventory_2_outlined),
-          _proKpiPanel([
-            _proKpi('Total WOs', safeText(wo['total'], '0'), Icons.inventory_2_outlined, AppColors.primaryDark),
-            _proKpi('Active', safeText(wo['active'], '0'), Icons.play_circle_outline, const Color(0xff2563EB)),
-            _proKpi('Completed', safeText(wo['completed'], '0'), Icons.check_circle_outline, const Color(0xff059669)),
-            _proKpi('Delayed', safeText(wo['delayed'], '0'), Icons.warning_amber, const Color(0xffEF4444)),
-          ]),
-
-          _sectionLabel('KAM Activity Health', Icons.local_activity_outlined),
-          _proKpiPanel([
-            _proKpi('Activities', safeText(kam['total_activities'], '0'), Icons.timeline, AppColors.primaryLight),
-            _proKpi('Calls', safeText(kam['calls'], '0'), Icons.phone, const Color(0xff2563EB)),
-            _proKpi('Meetings', safeText(kam['meetings'], '0'), Icons.groups_outlined, const Color(0xff059669)),
-            _proKpi('Overdue Tasks', safeText(kam['overdue_tasks'], '0'), Icons.task_alt, const Color(0xffEF4444)),
-          ]),
-
-          _sectionLabel('BG / EMD', Icons.shield_outlined),
-          _proKpiPanel([
-            _proKpi('Total', safeText(emdbg['total'], '0'), Icons.shield_outlined, AppColors.primaryDark),
-            _proKpi('Active', safeText(emdbg['active'], '0'), Icons.verified_outlined, const Color(0xff059669)),
-            _proKpi('Expiring', safeText((emdbg['expiring_soon'] is List ? emdbg['expiring_soon'].length : 0), '0'), Icons.warning_amber, const Color(0xffD97706)),
-            _proKpi('Exposure', formatCurrency(emdbg['total_exposure']), Icons.currency_rupee, AppColors.primaryLight),
-          ]),
-
-          _proListSection(
-            title: 'Key Contacts',
-            icon: Icons.contacts_outlined,
-            items: contacts,
-            empty: 'No contacts found',
-            builder: (item) {
-              final m = Map<String, dynamic>.from(item);
-              return _proInfoTile(
-                title: safeText(m['name'] ?? m['contact_name'], 'No Name'),
-                subtitle: '${safeText(m['designation'], '')} ${safeText(m['department'], '')}',
-                trailing: m['is_primary'] == true ? 'Primary' : '',
-                icon: Icons.person_outline,
-              );
-            },
-          ),
-
-          _proListSection(
-            title: 'Products Supplied',
-            icon: Icons.inventory_outlined,
-            items: productsSupplied,
-            empty: 'No products supplied',
-            builder: (item) {
-              final m = Map<String, dynamic>.from(item);
-              return _proInfoTile(
-                title: safeText(m['product_name'], 'Product'),
-                subtitle: 'Qty ${safeText(m['qty_supplied'], '0')} • ${formatCurrency(m['total_value'])}',
-                trailing: '${safeText(m['wo_count'], '0')} WO',
-                icon: Icons.inventory_2_outlined,
-              );
-            },
-          ),
-
-          _proListSection(
-            title: 'Products Demanded',
-            icon: Icons.trending_up,
-            items: productsDemanded,
-            empty: 'No products demanded',
-            builder: (item) {
-              final m = Map<String, dynamic>.from(item);
-              return _proInfoTile(
-                title: safeText(m['product_name'], 'Product'),
-                subtitle: 'Leads ${safeText(m['lead_count'], '0')} • Tenders ${safeText(m['tender_count'], '0')}',
-                trailing: m['lead_no_tender'] == true ? 'Gap' : '',
-                icon: Icons.shopping_bag_outlined,
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }*/
 
   Widget _proKpiPanel(List<Widget> children) {
     return Container(
@@ -3154,84 +3830,84 @@ class _CustomerState extends State<Customer>  {
               ),
 
               /// BOTTOM BUTTONS
-            Container(
-                    padding: EdgeInsets.all(isMobile ? 16 : 22),
-                    decoration: const BoxDecoration(
-                      border: Border(
-                        top: BorderSide(
-                          color: Color(0xffEEF2F7),
+              Container(
+                padding: EdgeInsets.all(isMobile ? 16 : 22),
+                decoration: const BoxDecoration(
+                  border: Border(
+                    top: BorderSide(
+                      color: Color(0xffEEF2F7),
+                    ),
+                  ),
+                ),
+                child: isMobile
+                    ? Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {},
+                        icon: const Icon(Icons.edit_outlined, size: 18),
+                        label: const Text("Edit Customer"),
+                        style: ElevatedButton.styleFrom(
+                          elevation: 0,
+                          backgroundColor: const Color(0xff0F172A),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
                         ),
                       ),
                     ),
-                    child: isMobile
-                        ? Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton.icon(
-                              onPressed: () {},
-                              icon: const Icon(Icons.edit_outlined, size: 18),
-                              label: const Text("Edit Customer"),
-                              style: ElevatedButton.styleFrom(
-                                elevation: 0,
-                                backgroundColor: const Color(0xff0F172A),
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                              ),
-                            ),
-                        ),
 
 
-                        const SizedBox(width: 8),
+                    const SizedBox(width: 8),
 
-                       Expanded(
-                         child: OutlinedButton(
-                              onPressed: () => Navigator.pop(context),
-                              style: OutlinedButton.styleFrom(
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                              ),
-                              child: const Text("Close"),
-                            ),
-                       ),
-
-                      ],
-                    )
-                        : Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        OutlinedButton(
-                          onPressed: () => Navigator.pop(context),
-                          style: OutlinedButton.styleFrom(
-                            minimumSize: const Size(110, 48),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                          ),
-                          child: const Text("Close"),
-                        ),
-
-                        const SizedBox(width: 12),
-
-                        ElevatedButton.icon(
-                          onPressed: () {},
-                          icon: const Icon(Icons.edit_outlined, size: 18),
-                          label: const Text("Edit Customer"),
-                          style: ElevatedButton.styleFrom(
-                            elevation: 0,
-                            backgroundColor: const Color(0xff0F172A),
-                            foregroundColor: Colors.white,
-                            minimumSize: const Size(170, 48),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
                           ),
                         ),
-                      ],
+                        child: const Text("Close"),
+                      ),
                     ),
-                  ),
+
+                  ],
+                )
+                    : Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(110, 48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: const Text("Close"),
+                    ),
+
+                    const SizedBox(width: 12),
+
+                    ElevatedButton.icon(
+                      onPressed: () {},
+                      icon: const Icon(Icons.edit_outlined, size: 18),
+                      label: const Text("Edit Customer"),
+                      style: ElevatedButton.styleFrom(
+                        elevation: 0,
+                        backgroundColor: const Color(0xff0F172A),
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(170, 48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
 
             ],
           ),

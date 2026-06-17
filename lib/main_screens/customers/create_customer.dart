@@ -76,7 +76,7 @@ class ContactFormModel {
 }
 
 class _CreateCustomerState extends State<CreateCustomer> with SingleTickerProviderStateMixin {
-  static const String baseUrl = 'http://103.110.236.187:3076/api/v1';
+  static const String baseUrl = 'https://ascent.crm.azcentrix.com:4447/api/v1';
   static const String draftKey = 'create_customer_draft_v2';
 
   final _formKey = GlobalKey<FormState>();
@@ -738,114 +738,149 @@ class _CreateCustomerState extends State<CreateCustomer> with SingleTickerProvid
       context: context,
       barrierDismissible: false,
       builder: (context) {
-
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          elevation: 12,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(28),
-          ),
-          contentPadding: const EdgeInsets.fromLTRB(24, 24, 24, 18),
-          titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-          actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 18),
-          title: Row(
-            children: [
-              Container(
-                height: 52,
-                width: 52,
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  borderRadius: BorderRadius.circular(16),
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 22),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(28),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.16),
+                  blurRadius: 28,
+                  offset: const Offset(0, 12),
                 ),
-                child: Icon(
-                  Icons.warning_amber_rounded,
-                  color: Colors.red.shade700,
-                  size: 30,
-                ),
-              ),
-              const SizedBox(width: 16),
-              const Expanded(
-                child: Text(
-                  "Discard Changes?",
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF1F2937),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          content: const Text(
-            "Are you sure you want to go back? If you continue, all entered details will be permanently removed.",
-            style: TextStyle(
-              fontSize: 15,
-              height: 1.5,
-              color: Color(0xFF6B7280),
-              fontWeight: FontWeight.w500,
+              ],
             ),
-          ),
-          actions: [
-            SizedBox(
-              height: 48,
-              child: OutlinedButton(
-                onPressed: () => Navigator.pop(context, false),
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: Colors.grey.shade300),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 22),
-                ),
-                child: const Text(
-                  "Cancel",
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF374151),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            SizedBox(
-              height: 48,
-              child: ElevatedButton(
-                onPressed: () => Navigator.pop(context, true),
-                style: ElevatedButton.styleFrom(
-                  elevation: 0,
-                  backgroundColor: const Color(0xFFDC2626),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Icon(Icons.delete_outline_rounded, size: 20),
-                    SizedBox(width: 8),
-                    Text(
-                      "Discard",
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
+                    Container(
+                      height: 52,
+                      width: 52,
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Icon(
+                        Icons.warning_amber_rounded,
+                        color: Colors.red.shade700,
+                        size: 30,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    const Expanded(
+                      child: Text(
+                        "Discard Changes?",
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1F2937),
+                        ),
                       ),
                     ),
                   ],
                 ),
-              ),
-            ),
-          ],
-        );
 
+                const SizedBox(height: 20),
+
+                const Text(
+                  "Are you sure you want to go back? If you continue, all entered details will be permanently removed.",
+                  style: TextStyle(
+                    fontSize: 15,
+                    height: 1.5,
+                    color: Color(0xFF6B7280),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: SizedBox(
+                        height: 48,
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: Colors.grey.shade300),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: const Text(
+                            "Cancel",
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF374151),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(width: 10),
+
+                    Expanded(
+                      child: SizedBox(
+                        height: 48,
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          style: ElevatedButton.styleFrom(
+                            elevation: 0,
+                            backgroundColor: Color(0xFFDC2626),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: const FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.delete_outline_rounded, size: 20),
+                                SizedBox(width: 8),
+                                Text(
+                                  "Discard",
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
       },
     );
 
     if (shouldLeave == true) {
-      if (!widget.isEdit) await clearDraftAndFields();
-      if (mounted) Navigator.pop(context);
+      if (!widget.isEdit) {
+        await clearDraftAndFields();
+      }
+
+      if (mounted) {
+        Navigator.pop(context);
+      }
     }
 
     return false;

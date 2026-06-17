@@ -35,7 +35,10 @@ class ApiMethod {
         body: jsonEncode(body),
       );
 
+      print("========== POST REQUEST ==========");
       print("POST URL: $url");
+      print("HEADERS: $headers");
+      print("BODY: ${jsonEncode(body)}");
       print("STATUS CODE: ${response.statusCode}");
 
       return {

@@ -6,7 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class DashboardApi {
-  static const String baseUrl = "http://103.110.236.187:3076/api/v1";
+  static const String baseUrl = "https://ascent.crm.azcentrix.com:4447/api/v1";
 
   static Future<Map<String, dynamic>> fetchOverview(String token, String tenantSlug) async {
     final url = "$baseUrl/dashboard";
@@ -147,71 +147,206 @@ class _HeroHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final tenderValue = n(overview["tender_value"]);
     final wonValue = n(overview["won_value"]);
-    final winRate = tenderValue == 0 ? 0 : ((wonValue / tenderValue) * 100).round();
+    final winRate =
+    tenderValue == 0 ? 0 : ((wonValue / tenderValue) * 100).round();
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
         gradient: const LinearGradient(
-          colors: [Color(0xff102642), Color(0xff3b82f6)],
+          colors: [
+            Color(0xff0f172a),
+            Color(0xff1d4ed8),
+            Color(0xff60a5fa),
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: const [
-          BoxShadow(color: Color(0x263b82f6), blurRadius: 18, offset: Offset(0, 8)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xff2563eb).withOpacity(0.28),
+            blurRadius: 28,
+            spreadRadius: 1,
+            offset: const Offset(0, 14),
+          ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          Row(
-            children: [
-              const CircleAvatar(
-                radius: 22,
-                backgroundColor: Colors.white24,
-                child: Icon(Icons.person, color: Colors.white),
+          Positioned(
+            right: -35,
+            top: -35,
+            child: Container(
+              height: 135,
+              width: 135,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.08),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text.rich(
-                      TextSpan(children: [
-                        TextSpan(
-                          text: "Good morning, ",
-                          style: TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w800),
-                        ),
-                        TextSpan(
-                          text: "Admin.",
-                          style: TextStyle(color: Color(0xffbfdbfe), fontSize: 19, fontWeight: FontWeight.w900),
-                        ),
-                      ]),
+            ),
+          ),
+          Positioned(
+            right: 22,
+            bottom: -45,
+            child: Container(
+              height: 115,
+              width: 115,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.06),
+              ),
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    height: 52,
+                    width: 52,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.16),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.22),
+                      ),
                     ),
-                    const SizedBox(height: 5),
-                    Text(
-                      DateFormat('EEEE, d MMMM yyyy').format(DateTime.now()),
-                      style: const TextStyle(color: Color(0xffdbeafe), fontSize: 12),
+                    child: const Icon(
+                      Icons.person_rounded,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                  ),
+
+                  const SizedBox(width: 14),
+
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text.rich(
+                          TextSpan(
+                            children: [
+                              TextSpan(
+                                text: "Good morning, ",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -0.2,
+                                ),
+                              ),
+                              TextSpan(
+                                text: "Admin.",
+                                style: TextStyle(
+                                  color: Color(0xffdbeafe),
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: -0.2,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 6),
+
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.calendar_month_rounded,
+                              size: 14,
+                              color: Colors.white.withOpacity(0.78),
+                            ),
+                            const SizedBox(width: 5),
+                            Flexible(
+                              child: Text(
+                                DateFormat('EEEE, d MMMM yyyy')
+                                    .format(DateTime.now()),
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.78),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(width: 10),
+
+                  Material(
+                    color: Colors.white.withOpacity(0.14),
+                    borderRadius: BorderRadius.circular(16),
+                    child: InkWell(
+                      onTap: onRefresh,
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        height: 44,
+                        width: 44,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.18),
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.refresh_rounded,
+                          color: Colors.white,
+                          size: 22,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 22),
+
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.10),
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.18),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _HeroMetric(
+                        "Tender Value",
+                        fmtRs(tenderValue),
+                        Icons.description_rounded,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _HeroMetric(
+                        "Won Value",
+                        fmtRs(wonValue),
+                        Icons.emoji_events_rounded,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _HeroMetric(
+                        "Win Rate",
+                        "$winRate%",
+                        Icons.trending_up_rounded,
+                      ),
                     ),
                   ],
                 ),
               ),
-              IconButton(
-                onPressed: onRefresh,
-                icon: const Icon(Icons.refresh, color: Colors.white),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(child: _HeroMetric("Tender Value", fmtRs(tenderValue))),
-              const SizedBox(width: 10),
-              Expanded(child: _HeroMetric("Won Value", fmtRs(wonValue))),
-              const SizedBox(width: 10),
-              Expanded(child: _HeroMetric("Win Rate", "$winRate%")),
             ],
           ),
         ],
@@ -222,30 +357,64 @@ class _HeroHeader extends StatelessWidget {
 
 class _HeroMetric extends StatelessWidget {
   final String label, value;
-  const _HeroMetric(this.label, this.value);
+  final IconData icon;
+
+  const _HeroMetric(this.label, this.value, this.icon);
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+      padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 10),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.12),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.white24),
+        color: Colors.white.withOpacity(0.13),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.20),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Container(
+            height: 28,
+            width: 28,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.16),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              icon,
+              color: Colors.white,
+              size: 16,
+            ),
+          ),
+
+          const SizedBox(height: 10),
+
           Text(
             label.toUpperCase(),
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: Color(0xffbfdbfe), fontSize: 9, fontWeight: FontWeight.w900),
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.70),
+              fontSize: 8.5,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.7,
+            ),
           ),
-          const SizedBox(height: 7),
+
+          const SizedBox(height: 6),
+
           Text(
             value,
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w900),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 15.5,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.2,
+            ),
           ),
         ],
       ),
@@ -259,10 +428,19 @@ class _KpiGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final leadCount = n(overview["lead_count"]) != 0 ? n(overview["lead_count"]) : n(overview["total_leads"]);
+    final leadCount = n(overview["lead_count"]) != 0
+        ? n(overview["lead_count"])
+        : n(overview["total_leads"]);
+
     final oppCount = n(overview["total_opportunities"]);
-    final workOrders = n(overview["total_work_orders"]) != 0 ? n(overview["total_work_orders"]) : n(overview["active_work_orders"]);
-    final emdbg = n(overview["total_emdbg"]) != 0 ? n(overview["total_emdbg"]) : n(overview["emdbg_count"]);
+
+    final workOrders = n(overview["total_work_orders"]) != 0
+        ? n(overview["total_work_orders"])
+        : n(overview["active_work_orders"]);
+
+    final emdbg = n(overview["total_emdbg"]) != 0
+        ? n(overview["total_emdbg"])
+        : n(overview["emdbg_count"]);
 
     final cards = [
       ["Leads", fmtN(leadCount), fmtRs(overview["lead_value"]), const Color(0xff1e40af), Icons.track_changes],
@@ -275,78 +453,156 @@ class _KpiGrid extends StatelessWidget {
       ["Approvals", fmtN(overview["pending_approvals"]), "${fmtN(overview["total_approvals"])} total", const Color(0xffef4444), Icons.verified],
     ];
 
-    return GridView.count(
-      crossAxisCount: 2,
+    return GridView.builder(
+      itemCount: cards.length,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 10,
-      crossAxisSpacing: 10,
-      childAspectRatio: 1.2,
-      children: cards.map((c) {
-        return _KpiCard(
-          c[0] as String,
-          c[1] as String,
-          c[2] as String,
-          c[3] as Color,
-          c[4] as IconData,
+      padding: const EdgeInsets.all(2),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 14,
+        crossAxisSpacing: 14,
+        childAspectRatio: 1.15,
+      ),
+      itemBuilder: (context, index) {
+        final c = cards[index];
+
+        return _ElegantKpiCard(
+          title: c[0] as String,
+          value: c[1] as String,
+          subtitle: c[2] as String,
+          color: c[3] as Color,
+          icon: c[4] as IconData,
         );
-      }).toList(),
+      },
     );
   }
 }
 
-class _KpiCard extends StatelessWidget {
-  final String title, count, amount;
+class _ElegantKpiCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final String subtitle;
   final Color color;
   final IconData icon;
 
-  const _KpiCard(this.title, this.count, this.amount, this.color, this.icon);
+  const _ElegantKpiCard({
+    required this.title,
+    required this.value,
+    required this.subtitle,
+    required this.color,
+    required this.icon,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border(left: BorderSide(color: color, width: 4)),
+        borderRadius: BorderRadius.circular(22),
         gradient: LinearGradient(
-          colors: [color.withOpacity(.08), Colors.white],
           begin: Alignment.topLeft,
-          end: Alignment.center,
+          end: Alignment.bottomRight,
+          colors: [
+            color,
+            color.withOpacity(0.78),
+          ],
         ),
-        boxShadow: const [BoxShadow(color: Color(0x11000000), blurRadius: 12, offset: Offset(0, 5))],
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.24),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  title.toUpperCase(),
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1),
+          Positioned(
+            right: -18,
+            bottom: -22,
+            child: Icon(
+              icon,
+              size: 96,
+              color: Colors.white.withOpacity(0.10),
+            ),
+          ),
+
+          Positioned(
+            right: 14,
+            top: 14,
+            child: Container(
+              height: 42,
+              width: 42,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.18),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.22),
                 ),
               ),
-              Container(
-                height: 35,
-                width: 35,
-                decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(12)),
-                child: Icon(icon, color: Colors.white, size: 18),
+              child: Icon(
+                icon,
+                color: Colors.white,
+                size: 22,
               ),
-            ],
+            ),
           ),
-          const Spacer(),
-          Text(
-            count,
-            style: const TextStyle(color: Color(0xff0f172a), fontSize: 27, fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            amount,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: Color(0xff94a3b8), fontSize: 12, fontWeight: FontWeight.w800),
+
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.86),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+
+                const Spacer(),
+
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    height: 1,
+                  ),
+                ),
+
+                const SizedBox(height: 8),
+
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.16),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.92),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
